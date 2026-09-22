@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 — 2026-09-23
+
+Panel border alignment update.
+
+- Added matching horizontal padding to the Random toggle and Remove shortcuts button so their left and right borders are no longer clipped by the panel content edge.
+
 ## 0.1.3 — 2026-09-23
 
 Panel density update.

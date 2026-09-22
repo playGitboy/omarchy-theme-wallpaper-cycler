@@ -283,7 +283,8 @@ Panel {
 
             ButtonGroup {
               id: bgBarPosition
-              width: parent.width
+              x: Style.space(2)
+              width: parent.width - Style.space(4)
               focusable: false
               cursorIndex: root.cursor === 0 && root.barSection !== "" ? Model.BAR_SECTIONS.indexOf(root.barSection) : -1
               foreground: root.foreground
@@ -313,7 +314,8 @@ Panel {
 
             ButtonGroup {
               id: bgThemeMode
-              width: parent.width
+              x: Style.space(2)
+              width: parent.width - Style.space(4)
               focusable: false
               cursorIndex: root.cursor === 1 ? (root.themeMode === "sequential" ? 0 : 1) : -1
               foreground: root.foreground
@@ -342,7 +344,8 @@ Panel {
 
             ButtonGroup {
               id: bgWallpaperScope
-              width: parent.width
+              x: Style.space(2)
+              width: parent.width - Style.space(4)
               focusable: false
               cursorIndex: root.cursor === 2 ? (root.wallpaperScope === "current" ? 0 : 1) : -1
               foreground: root.foreground
@@ -357,7 +360,8 @@ Panel {
 
             Toggle {
               id: toggleRandom
-              width: parent.width
+              x: Style.space(2)
+              width: parent.width - Style.space(4)
               height: Style.space(36)
               hasCursor: root.cursor === 3
               checked: root.wallpaperRandom
@@ -414,7 +418,8 @@ Panel {
 
             Button {
               id: bindsButton
-              width: parent.width
+              x: Style.space(2)
+              width: parent.width - Style.space(4)
               focusable: false
               hasCursor: root.cursor === 4
               bordered: true
