@@ -39,6 +39,16 @@ function seq(values) {
 
 // ---- settings --------------------------------------------------------------
 
+test("contrast helpers choose a readable popup foreground", () => {
+  const dark = { r: 5 / 255, g: 24 / 255, b: 46 / 255 }
+  const cream = { r: 246 / 255, g: 220 / 255, b: 172 / 255 }
+  const muted = { r: 42 / 255, g: 107 / 255, b: 120 / 255 }
+  assert(M.contrastRatio(cream, dark) > 10)
+  assert(M.contrastRatio(muted, dark) < 4.5)
+  assert.strictEqual(M.readableTextColor(dark, [muted, cream], 4.5), "#f6dcac")
+  assert.strictEqual(M.readableTextColor({ r: 0.95, g: 0.95, b: 0.95 }, [{ r: 0.9, g: 0.9, b: 0.9 }], 4.5), "#000000")
+})
+
 test("normalizeSettings defaults and clamps", () => {
   assert.deepStrictEqual(M.normalizeSettings({}), {
     themeMode: "sequential",

@@ -74,7 +74,7 @@ ALTERNATE_KEYS = {
 }
 
 MOD_MASK = {"SHIFT": 1, "CAPS": 2, "CTRL": 4, "ALT": 8, "MOD2": 16, "MOD3": 32, "SUPER": 64, "MOD5": 128}
-MOD_ORDER = ["SUPER", "SHIFT", "CTRL", "ALT", "CAPS", "MOD2", "MOD5"]
+MOD_ORDER = ["SUPER", "SHIFT", "CTRL", "ALT", "CAPS", "MOD2", "MOD3", "MOD5"]
 KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,32}$")
 MAX_CONFIG_BYTES = 1024 * 1024
 BACKUP_KEEP = 5
@@ -139,6 +139,12 @@ def pretty_name(slug: str) -> str:
     return re.sub(r"(^|-)([a-z])", lambda m: m.group(1) + m.group(2).upper(), slug).replace("-", " ")
 
 
+def media_sort_key(path: str) -> tuple[str, str, str]:
+    """Sort by the user-visible filename, not machine-specific root paths."""
+    name = os.path.basename(path)
+    return (name.casefold(), name, path)
+
+
 def media_files(directory: str) -> list[str]:
     if not is_dir(directory):
         return []
@@ -157,6 +163,7 @@ def media_files(directory: str) -> list[str]:
         except OSError:
             continue
         found.append(os.path.realpath(path))
+    found.sort(key=media_sort_key)
     return found
 
 
@@ -190,7 +197,7 @@ def theme_backgrounds(slug: str) -> list[str]:
                 continue
             seen.add(path)
             ordered.append(path)
-    ordered.sort()
+    ordered.sort(key=media_sort_key)
     return ordered
 
 
@@ -316,7 +323,12 @@ def write_config_atomic(path: str, text: str) -> str | None:
     check_config(path, must_exist=False)
     backup = None
     if os.path.lexists(path):
-        backup = f"{path}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+        stamp = time.strftime('%Y%m%d%H%M%S')
+        backup = f"{path}.bak.{stamp}"
+        suffix = 1
+        while os.path.lexists(backup):
+            backup = f"{path}.bak.{stamp}.{suffix}"
+            suffix += 1
         shutil.copy2(path, backup)
         mode = stat.S_IMODE(os.lstat(path).st_mode)
     else:

@@ -49,6 +49,84 @@ function normalizeBool(value, fallback) {
   return fallback === true
 }
 
+// ---- contrast-safe popup colors -------------------------------------------
+// QML color values expose r/g/b as 0..1 numbers. The string path keeps these
+// helpers usable from Node tests too. Alpha is intentionally ignored here:
+// the popup surface may be translucent, but its declared surface color is the
+// only stable value available before the compositor backdrop is known.
+function colorParts(value) {
+  if (value && typeof value === "object"
+      && isFinite(Number(value.r)) && isFinite(Number(value.g)) && isFinite(Number(value.b))) {
+    return {
+      r: clampUnit(value.r),
+      g: clampUnit(value.g),
+      b: clampUnit(value.b)
+    }
+  }
+  var text = String(value === undefined || value === null ? "" : value).trim()
+  var match = text.match(/^#(?:([0-9a-fA-F]{2})?)([0-9a-fA-F]{6})$/)
+  if (!match) return null
+  var hex = match[2]
+  return {
+    r: parseInt(hex.slice(0, 2), 16) / 255,
+    g: parseInt(hex.slice(2, 4), 16) / 255,
+    b: parseInt(hex.slice(4, 6), 16) / 255
+  }
+}
+
+function clampUnit(value) {
+  var number = Number(value)
+  if (!isFinite(number)) return 0
+  if (number > 1) number /= 255
+  return Math.max(0, Math.min(1, number))
+}
+
+function luminanceChannel(value) {
+  var channel = clampUnit(value)
+  return channel <= 0.03928
+    ? channel / 12.92
+    : Math.pow((channel + 0.055) / 1.055, 2.4)
+}
+
+function relativeLuminance(value) {
+  var color = colorParts(value)
+  if (!color) return 0
+  return 0.2126 * luminanceChannel(color.r)
+    + 0.7152 * luminanceChannel(color.g)
+    + 0.0722 * luminanceChannel(color.b)
+}
+
+function contrastRatio(first, second) {
+  var left = relativeLuminance(first)
+  var right = relativeLuminance(second)
+  var lighter = Math.max(left, right)
+  var darker = Math.min(left, right)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+function colorHex(value) {
+  var color = colorParts(value)
+  if (!color) return "#ffffff"
+  function byte(channel) {
+    var hex = Math.round(clampUnit(channel) * 255).toString(16)
+    return hex.length < 2 ? "0" + hex : hex
+  }
+  return "#" + byte(color.r) + byte(color.g) + byte(color.b)
+}
+
+// Choose a popup text color that actually contrasts with the popup surface.
+// Theme-provided popup text wins; foreground candidates and black/white are
+// safe fallbacks for themes whose bar and popup tokens disagree.
+function readableTextColor(background, candidates, minimumRatio) {
+  var minimum = Number(minimumRatio)
+  if (!isFinite(minimum) || minimum <= 0) minimum = 4.5
+  var list = Array.isArray(candidates) ? candidates : []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && contrastRatio(list[i], background) >= minimum) return colorHex(list[i])
+  }
+  return relativeLuminance(background) > 0.5 ? "#000000" : "#ffffff"
+}
+
 // Read the three user settings out of a raw shell.json entry, clamping every
 // field so a hand-edited value can never drive an unknown branch.
 function normalizeSettings(entry) {
@@ -288,6 +366,10 @@ if (typeof module !== "undefined") {
     normalizeThemeMode: normalizeThemeMode,
     normalizeWallpaperScope: normalizeWallpaperScope,
     normalizeBool: normalizeBool,
+    colorParts: colorParts,
+    relativeLuminance: relativeLuminance,
+    contrastRatio: contrastRatio,
+    readableTextColor: readableTextColor,
     normalizeSettings: normalizeSettings,
     settingsEntry: settingsEntry,
     prettyName: prettyName,

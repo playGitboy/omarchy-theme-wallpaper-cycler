@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.1 — 2026-09-22
+
+Compatibility and readability update.
+
+- Panel text now uses the popup surface's text token and a WCAG-style contrast
+  fallback, so dark popup backgrounds never receive dark unreadable labels.
+- The inventory helper orders wallpapers by filename rather than absolute
+  machine-specific paths, making cycling deterministic across installations.
+- Python is resolved through `PATH`, backup names cannot collide within one
+  second, and MOD3 key parsing is supported.
+- Inventory refresh state and cached scope counts are now explicit in the
+  service, and short-screen cursor scrolling clamps safely.
+
 ## 0.1.0 — 2026-09-22
 
 Initial release.

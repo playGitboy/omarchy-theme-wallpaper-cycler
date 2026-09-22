@@ -34,7 +34,8 @@ Item {
     return url.replace(/\/+$/, "")
   }
   readonly property string helperPath: pluginDir + "/bin/theme-cycler"
-  readonly property string pythonPath: "/usr/bin/python3"
+  // Resolve through PATH so the plugin also works on non-Arch Omarchy hosts.
+  readonly property string pythonPath: "python3"
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string configHome: Quickshell.env("XDG_CONFIG_HOME") || (home + "/.config")
@@ -56,9 +57,10 @@ Item {
   readonly property var themes: inventory.themes
   readonly property string currentThemeSlug: inventory.currentTheme
   readonly property string currentBackgroundPath: inventory.currentBackground
+  readonly property var inventoryCounts: Model.scopeCounts(inventory, settings)
   readonly property int themeCount: themes.length
-  readonly property int allBackgroundCount: Model.scopeCounts(inventory, settings).all
-  readonly property int currentBackgroundCount: Model.scopeCounts(inventory, settings).current
+  readonly property int allBackgroundCount: inventoryCounts.all
+  readonly property int currentBackgroundCount: inventoryCounts.current
   property double inventoryAt: 0
   property bool inventoryBusy: false
   property string pendingKind: ""
@@ -167,7 +169,7 @@ Item {
       root.pendingRefresh = true
       return
     }
-    inventoryProcess.running = false
+    root.inventoryBusy = true
     inventoryProcess.command = [root.pythonPath, root.helperPath, "inventory"]
     inventoryProcess.running = true
   }

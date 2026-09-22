@@ -143,6 +143,11 @@ over; re-add your own binding if you want it back.
   `qs.Ui` (`Panel`, `KeyboardPanel`, `BarIconButton`, `ButtonGroup`, `Toggle`),
   `Quickshell.Hyprland.GlobalShortcut`, `Quickshell.Io.Process`, and the
   `omarchy theme`, `omarchy theme bg`, and `omarchy bar` commands.
+- Popup content chooses the active popup text token first and verifies its
+  contrast against the popup background, falling back to a readable black or
+  white color for themes with inconsistent bar and popup tokens.
+- Wallpaper ordering uses theme slug plus filename rather than absolute paths,
+  so the same inventory has the same order on different computers.
 - One service instance owns the shortcuts and the inventory; the bar widget is
   a per-monitor view, so the four shortcuts are registered once regardless of
   how many screens or bar copies exist.

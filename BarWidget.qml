@@ -23,9 +23,19 @@ Panel {
   readonly property var service: bar && bar.shell && typeof bar.shell.serviceFor === "function"
     ? bar.shell.serviceFor(moduleName) : null
   readonly property bool serviceReady: service !== null
-  readonly property color foreground: bar ? bar.barForeground : Color.foreground
+  // A bar facade's foreground is optimized for the bar surface, not the
+  // popup card. Prefer the popup text token and fall back to a mathematically
+  // contrast-safe black/white color when a theme's tokens disagree.
+  readonly property color popupBackground: Color.popups.background
+  readonly property color foreground: Model.readableTextColor(
+    root.popupBackground,
+    [Color.popups.text, Color.foreground, bar ? bar.barForeground : Color.foreground],
+    4.5)
   readonly property color accent: Color.accent
-  readonly property color dim: Qt.darker(foreground, 1.55)
+  readonly property color dim: Model.readableTextColor(
+    root.popupBackground,
+    [Qt.darker(root.foreground, 1.55), root.foreground],
+    3.0)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   // Read through the service when present, otherwise fall back to the injected
@@ -38,12 +48,12 @@ Panel {
   readonly property string currentThemeLabel: {
     var themes = root.serviceReady ? service.themes : []
     for (var i = 0; i < themes.length; i++) {
-      if (themes[i].slug === service.currentThemeSlug) return themes[i].name
+      if (themes[i].slug === root.service.currentThemeSlug) return themes[i].name
     }
-    return root.serviceReady && service.currentThemeSlug !== "" ? Model.prettyName(service.currentThemeSlug) : "Unknown"
+    return root.serviceReady && root.service.currentThemeSlug !== "" ? Model.prettyName(root.service.currentThemeSlug) : "Unknown"
   }
   readonly property string currentWallpaperLabel: {
-    var path = root.serviceReady ? service.currentBackgroundPath : ""
+    var path = root.serviceReady ? root.service.currentBackgroundPath : ""
     return path === "" ? "Unknown" : Model.baseName(path)
   }
   readonly property int themeCount: root.serviceReady ? service.themeCount : 0
@@ -91,7 +101,7 @@ Panel {
     if (y - pad < scroller.contentY) {
       scroller.contentY = Math.max(0, y - pad)
     } else if (y + item.height + pad > scroller.contentY + scroller.height) {
-      scroller.contentY = Math.min(scroller.contentHeight - scroller.height, y + item.height + pad - scroller.height)
+      scroller.contentY = Math.max(0, Math.min(scroller.contentHeight - scroller.height, y + item.height + pad - scroller.height))
     }
   }
 
@@ -119,19 +129,19 @@ Panel {
   }
 
   function moveBar(section) {
-    if (root.serviceReady) service.moveBar(section)
+    if (root.serviceReady) root.service.moveBar(section)
   }
 
   function setThemeMode(value) {
-    if (root.serviceReady) service.setSetting("themeMode", value)
+    if (root.serviceReady) root.service.setSetting("themeMode", value)
   }
 
   function setWallpaperScope(value) {
-    if (root.serviceReady) service.setSetting("wallpaperScope", value)
+    if (root.serviceReady) root.service.setSetting("wallpaperScope", value)
   }
 
   function toggleWallpaperRandom() {
-    if (root.serviceReady) service.setSetting("wallpaperRandom", !root.wallpaperRandom)
+    if (root.serviceReady) root.service.setSetting("wallpaperRandom", !root.wallpaperRandom)
   }
 
   function conflictActions() {
@@ -386,7 +396,7 @@ Panel {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                   wrapMode: Text.WordWrap
-                  width: column.width
+                  width: parent.width
                 }
               }
             }
@@ -429,8 +439,8 @@ Panel {
             }
 
             Text {
-              visible: root.serviceReady && !!service.lastMessage
-              text: root.serviceReady ? String(service.lastMessage) : ""
+              visible: root.serviceReady && !!root.service.lastMessage
+              text: root.serviceReady ? String(root.service.lastMessage) : ""
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -458,7 +468,7 @@ Panel {
     if (opened) {
       root.cursor = 0
       clampCursor()
-      if (root.serviceReady) service.refreshInventory()
+      if (root.serviceReady) root.service.refreshInventory()
     }
   }
 }
