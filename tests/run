@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Offline test suite: pure decision model, inventory enumeration, bindings.lua
+# manager, and the portable manifest check. Needs node and python3 only.
+# `omarchy plugin validate` runs when the CLI is available (it is on Omarchy;
+# CI and other hosts skip it).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+cleanup() { rm -rf bin/__pycache__ tests/__pycache__; }
+trap cleanup EXIT
+
+if command -v node >/dev/null 2>&1; then
+  node tests/test_model.js
+else
+  echo "tests/run: node not found; skipping Model.js unit tests" >&2
+  exit 1
+fi
+
+python3 tests/test_inventory.py
+python3 tests/test_binds.py
+python3 -m py_compile bin/theme-cycler
+python3 scripts/validate_manifest.py .
+bash -n demo/run
+
+if command -v omarchy >/dev/null 2>&1; then
+  omarchy plugin validate .
+fi
+
+echo "All Theme Wallpaper Cycler checks passed."

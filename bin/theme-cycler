@@ -1,0 +1,675 @@
+#!/usr/bin/env python3
+"""Theme Wallpaper Cycler helper.
+
+    theme-cycler inventory [--json]
+    theme-cycler binds status  [--json]
+    theme-cycler binds install [--json] [--replace ACTION[,ACTION...]] [--no-reload]
+    theme-cycler binds remove  [--json] [--no-reload]
+    theme-cycler version
+
+`inventory` prints a JSON snapshot of every installed Omarchy theme and its
+wallpapers, plus the active theme/background. The QML service parses it and the
+pure Model.js decides what to switch to; this helper never decides anything.
+
+`binds` owns exactly one fenced block in ~/.config/hypr/bindings.lua:
+
+    -- BEGIN io.github.playgitboy.theme-wallpaper-cycler
+    ...
+    -- END io.github.playgitboy.theme-wallpaper-cycler
+
+Everything outside that block is the user's and is never touched. Writes are
+atomic (timestamped backup, same-directory temp file, rename) and refuse
+symlinks or non-regular files. A shortcut that is already taken by something
+that is not this plugin is never overwritten unless the caller passes
+`--replace` for that action; otherwise it is skipped and reported.
+
+Only the Python 3 standard library is used. Nothing here requests elevated
+privileges, network access, or a background daemon.
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import time
+
+PLUGIN_ID = "io.github.playgitboy.theme-wallpaper-cycler"
+BEGIN = f"-- BEGIN {PLUGIN_ID}"
+END = f"-- END {PLUGIN_ID}"
+HELPER_NAME = "theme-cycler"
+
+MEDIA_EXTENSIONS = (
+    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
+    ".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi",
+)
+
+# Ordered the way the panel presents them.
+ACTIONS = ("theme-prev", "theme-next", "wallpaper-prev", "wallpaper-next")
+
+DESCRIPTIONS = {
+    "theme-prev": "Previous theme (Theme Wallpaper Cycler)",
+    "theme-next": "Next theme (Theme Wallpaper Cycler)",
+    "wallpaper-prev": "Previous wallpaper (Theme Wallpaper Cycler)",
+    "wallpaper-next": "Next wallpaper (Theme Wallpaper Cycler)",
+}
+
+DEFAULT_KEYS = {
+    "theme-prev": "SUPER + CTRL + SHIFT + LEFT",
+    "theme-next": "SUPER + CTRL + SHIFT + RIGHT",
+    "wallpaper-prev": "SUPER + CTRL + LEFT",
+    "wallpaper-next": "SUPER + CTRL + RIGHT",
+}
+
+ALTERNATE_KEYS = {
+    "theme-prev": "SUPER + ALT + SHIFT + LEFT",
+    "theme-next": "SUPER + ALT + SHIFT + RIGHT",
+    "wallpaper-prev": "SUPER + ALT + LEFT",
+    "wallpaper-next": "SUPER + ALT + RIGHT",
+}
+
+MOD_MASK = {"SHIFT": 1, "CAPS": 2, "CTRL": 4, "ALT": 8, "MOD2": 16, "MOD3": 32, "SUPER": 64, "MOD5": 128}
+MOD_ORDER = ["SUPER", "SHIFT", "CTRL", "ALT", "CAPS", "MOD2", "MOD5"]
+KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,32}$")
+MAX_CONFIG_BYTES = 1024 * 1024
+BACKUP_KEEP = 5
+
+
+class HelperError(Exception):
+    pass
+
+
+# --- paths ------------------------------------------------------------------
+
+def home_dir() -> str:
+    return os.path.expanduser("~")
+
+
+def config_home() -> str:
+    return os.environ.get("XDG_CONFIG_HOME") or os.path.join(home_dir(), ".config")
+
+
+def state_home() -> str:
+    return os.environ.get("XDG_STATE_HOME") or os.path.join(home_dir(), ".local", "state")
+
+
+def omarchy_path() -> str:
+    return os.environ.get("OMARCHY_PATH") or "/usr/share/omarchy"
+
+
+def bindings_path() -> str:
+    return os.path.join(config_home(), "hypr", "bindings.lua")
+
+
+def user_themes_dir() -> str:
+    return os.path.join(config_home(), "omarchy", "themes")
+
+
+def system_themes_dir() -> str:
+    return os.path.join(omarchy_path(), "themes")
+
+
+def user_backgrounds_dir() -> str:
+    return os.path.join(config_home(), "omarchy", "backgrounds")
+
+
+def current_theme_name_path() -> str:
+    return os.path.join(state_home(), "omarchy", "current", "theme.name")
+
+
+def current_background_link() -> str:
+    return os.path.join(state_home(), "omarchy", "current", "background")
+
+
+# --- inventory --------------------------------------------------------------
+
+def is_dir(path: str) -> bool:
+    try:
+        return os.path.isdir(path)
+    except OSError:
+        return False
+
+
+def pretty_name(slug: str) -> str:
+    return re.sub(r"(^|-)([a-z])", lambda m: m.group(1) + m.group(2).upper(), slug).replace("-", " ")
+
+
+def media_files(directory: str) -> list[str]:
+    if not is_dir(directory):
+        return []
+    found = []
+    try:
+        names = sorted(os.listdir(directory))
+    except OSError:
+        return []
+    for name in names:
+        if not name.lower().endswith(MEDIA_EXTENSIONS):
+            continue
+        path = os.path.join(directory, name)
+        try:
+            if not os.path.isfile(path):
+                continue
+        except OSError:
+            continue
+        found.append(os.path.realpath(path))
+    return found
+
+
+def theme_slugs() -> list[str]:
+    slugs = set()
+    for base in (system_themes_dir(), user_themes_dir()):
+        if not is_dir(base):
+            continue
+        try:
+            names = sorted(os.listdir(base))
+        except OSError:
+            continue
+        for name in names:
+            path = os.path.join(base, name)
+            if is_dir(path):
+                slugs.add(name)
+    return sorted(slugs)
+
+
+def theme_backgrounds(slug: str) -> list[str]:
+    seen = set()
+    ordered = []
+    directories = [
+        os.path.join(user_backgrounds_dir(), slug),
+        os.path.join(system_themes_dir(), slug, "backgrounds"),
+        os.path.join(user_themes_dir(), slug, "backgrounds"),
+    ]
+    for directory in directories:
+        for path in media_files(directory):
+            if path in seen:
+                continue
+            seen.add(path)
+            ordered.append(path)
+    ordered.sort()
+    return ordered
+
+
+def current_theme() -> str:
+    try:
+        with open(current_theme_name_path(), "r", encoding="utf-8", errors="replace") as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
+def current_background() -> str:
+    link = current_background_link()
+    try:
+        resolved = os.path.realpath(link)
+    except OSError:
+        return ""
+    return resolved if os.path.isfile(resolved) else ""
+
+
+def inventory() -> dict:
+    themes = []
+    for slug in theme_slugs():
+        user_dir = os.path.join(user_themes_dir(), slug)
+        themes.append({
+            "slug": slug,
+            "name": pretty_name(slug),
+            "source": "user" if is_dir(user_dir) else "system",
+            "backgrounds": theme_backgrounds(slug),
+        })
+    return {
+        "schema": 1,
+        "pluginId": PLUGIN_ID,
+        "omarchyPath": omarchy_path(),
+        "themes": themes,
+        "currentTheme": current_theme(),
+        "currentBackground": current_background(),
+    }
+
+
+# --- key parsing ------------------------------------------------------------
+
+def normalize_key(text: str) -> str:
+    parts = [part.strip() for part in str(text or "").replace("+", " + ").split("+")]
+    parts = [part for part in parts if part]
+    if not parts:
+        raise HelperError("empty key combination")
+    modifiers = []
+    key = parts[-1]
+    for modifier in parts[:-1]:
+        upper = modifier.upper()
+        if upper not in MOD_MASK:
+            raise HelperError(f"unknown modifier: {modifier}")
+        if upper in modifiers:
+            raise HelperError(f"duplicate modifier: {modifier}")
+        modifiers.append(upper)
+    if not KEY_RE.match(key):
+        raise HelperError(f"unsupported key: {key}")
+    if "SUPER" not in modifiers:
+        raise HelperError("shortcuts must include SUPER")
+    modifiers.sort(key=MOD_ORDER.index)
+    normalized_key = key.upper() if len(key) == 1 else key
+    return " + ".join(modifiers + [normalized_key])
+
+
+def key_signature(key: str) -> tuple[int, str]:
+    parts = [part.strip() for part in key.split("+")]
+    mask = 0
+    for modifier in parts[:-1]:
+        mask |= MOD_MASK[modifier.upper()]
+    return mask, parts[-1].lower()
+
+
+def pretty_key(key: str) -> str:
+    return (key.replace("SUPER", "Super").replace("SHIFT", "Shift")
+            .replace("CTRL", "Ctrl").replace("ALT", "Alt").replace(" + ", "+"))
+
+
+# --- config file handling ---------------------------------------------------
+
+def check_config(path: str, must_exist: bool) -> None:
+    try:
+        metadata = os.lstat(path)
+    except FileNotFoundError:
+        if must_exist:
+            raise HelperError(f"no such file: {path}")
+        return
+    if stat.S_ISLNK(metadata.st_mode):
+        raise HelperError(f"refusing to follow symlink: {path}")
+    if not stat.S_ISREG(metadata.st_mode):
+        raise HelperError(f"not a regular file: {path}")
+    if metadata.st_size > MAX_CONFIG_BYTES:
+        raise HelperError(f"config unexpectedly large (> {MAX_CONFIG_BYTES} bytes): {path}")
+
+
+def read_config(path: str) -> str:
+    check_config(path, must_exist=False)
+    if not os.path.lexists(path):
+        return ""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb") as handle:
+        data = handle.read(MAX_CONFIG_BYTES + 1)
+    if len(data) > MAX_CONFIG_BYTES:
+        raise HelperError("config unexpectedly large")
+    return data.decode("utf-8")
+
+
+def prune_backups(path: str, keep: int = BACKUP_KEEP) -> None:
+    try:
+        candidates = sorted(glob.glob(path + ".bak.*"))
+    except OSError:
+        return
+    for old in candidates[: max(0, len(candidates) - keep)]:
+        try:
+            os.unlink(old)
+        except OSError:
+            pass
+
+
+def write_config_atomic(path: str, text: str) -> str | None:
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    check_config(path, must_exist=False)
+    backup = None
+    if os.path.lexists(path):
+        backup = f"{path}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+        shutil.copy2(path, backup)
+        mode = stat.S_IMODE(os.lstat(path).st_mode)
+    else:
+        mode = 0o644
+    temporary = os.path.join(directory, f".bindings.lua.{os.getpid()}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(text.encode("utf-8"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary, mode)
+        check_config(path, must_exist=False)
+        os.rename(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+    prune_backups(path)
+    return backup
+
+
+def block_pattern(plugin_id: str) -> re.Pattern:
+    escaped = re.escape(plugin_id)
+    return re.compile(rf"^[ \t]*-- BEGIN {escaped}[ \t]*\n.*?^[ \t]*-- END {escaped}[ \t]*\n?", re.S | re.M)
+
+
+def find_blocks(text: str, plugin_id: str) -> list[tuple[int, int]]:
+    return [(match.start(), match.end()) for match in block_pattern(plugin_id).finditer(text)]
+
+
+def has_dangling_marker(text: str, plugin_id: str) -> bool:
+    escaped = re.escape(plugin_id)
+    begins = len(re.findall(rf"^[ \t]*-- BEGIN {escaped}[ \t]*$", text, re.M))
+    ends = len(re.findall(rf"^[ \t]*-- END {escaped}[ \t]*$", text, re.M))
+    return begins != ends or begins != len(find_blocks(text, plugin_id))
+
+
+def strip_blocks(text: str, plugin_id: str) -> tuple[str, int]:
+    spans = find_blocks(text, plugin_id)
+    for start, end in reversed(spans):
+        before, after = text[:start], text[end:]
+        if after == "":
+            if before.endswith("\n\n"):
+                before = before[:-1]
+        else:
+            while before.endswith("\n\n") and after.startswith("\n"):
+                after = after[1:]
+        text = before + after
+    return text, len(spans)
+
+
+def text_outside_blocks(text: str) -> str:
+    outside, _ = strip_blocks(text, PLUGIN_ID)
+    return outside
+
+
+def render_block(keys: dict[str, str], unbind: list[str]) -> str:
+    lines = [
+        BEGIN,
+        "-- Managed by Theme Wallpaper Cycler (bin/theme-cycler binds install|remove). Do not hand-edit.",
+    ]
+    for key in unbind:
+        lines.append(f'hl.unbind("{key}")')
+    for action in ACTIONS:
+        if action not in keys:
+            continue
+        lines.append(
+            f'o.bind("{keys[action]}", "{DESCRIPTIONS[action]}", '
+            f'hl.dsp.global("{PLUGIN_ID}:{action}"))'
+        )
+    lines.append(END)
+    return "\n".join(lines) + "\n"
+
+
+# --- live bind inspection ---------------------------------------------------
+
+def hyprctl_available() -> bool:
+    return shutil.which("hyprctl") is not None and bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"))
+
+
+def live_binds() -> list[dict] | None:
+    if not hyprctl_available():
+        return None
+    try:
+        process = subprocess.run(["hyprctl", "-j", "binds"], capture_output=True, text=True, timeout=3.0)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if process.returncode != 0:
+        return None
+    try:
+        data = json.loads(process.stdout)
+    except ValueError:
+        return None
+    return data if isinstance(data, list) else None
+
+
+def live_owner(binds: list[dict] | None, key: str) -> str | None:
+    if binds is None:
+        return None
+    mask, name = key_signature(key)
+    for entry in binds:
+        try:
+            if int(entry.get("modmask", -1)) != mask:
+                continue
+            if str(entry.get("submap") or ""):
+                continue
+            if str(entry.get("key") or "").lower() != name:
+                continue
+        except (TypeError, ValueError):
+            continue
+        return str(entry.get("description") or "") or "(unnamed binding)"
+    return None
+
+
+def textual_owner(user_text: str, key: str) -> str | None:
+    mask, name = key_signature(key)
+    pattern = re.compile(r'o\.bind\(\s*"([^"]+)"\s*,\s*("([^"]*)"|nil)?', re.S)
+    for match in pattern.finditer(user_text):
+        try:
+            candidate = normalize_key(match.group(1))
+        except HelperError:
+            continue
+        if key_signature(candidate) == (mask, name):
+            return match.group(3) or "(custom binding)"
+    return None
+
+
+def reload_hyprland() -> bool:
+    if not hyprctl_available():
+        return False
+    try:
+        process = subprocess.run(["hyprctl", "reload"], capture_output=True, text=True, timeout=8.0)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return process.returncode == 0
+
+
+def ours_live(binds: list[dict] | None) -> dict[str, bool]:
+    found = {action: False for action in ACTIONS}
+    if binds is None:
+        return found
+    descriptions = set(DESCRIPTIONS.values())
+    for entry in binds:
+        if str(entry.get("description") or "") in descriptions:
+            for action, text in DESCRIPTIONS.items():
+                if str(entry.get("description") or "") == text:
+                    found[action] = True
+    return found
+
+
+# --- binds commands ---------------------------------------------------------
+
+def status(path: str) -> dict:
+    result = {
+        "pluginId": PLUGIN_ID,
+        "config": path,
+        "installed": False,
+        "file": "ok",
+        "malformed": [],
+        "hyprland": False,
+        "live": {},
+        "conflicts": [],
+        "keys": {},
+    }
+    try:
+        text = read_config(path)
+    except HelperError as error:
+        result["file"] = str(error)
+        text = ""
+    result["installed"] = bool(find_blocks(text, PLUGIN_ID))
+    if has_dangling_marker(text, PLUGIN_ID):
+        result["malformed"].append(PLUGIN_ID)
+    binds = live_binds()
+    result["hyprland"] = binds is not None
+    result["live"] = ours_live(binds)
+    user_text = text_outside_blocks(text)
+    for action in ACTIONS:
+        key = DEFAULT_KEYS[action]
+        owner = live_owner(binds, key) or textual_owner(user_text, key)
+        if owner is None or owner in DESCRIPTIONS.values():
+            continue
+        result["conflicts"].append({
+            "action": action,
+            "key": key,
+            "pretty": pretty_key(key),
+            "owner": owner,
+            "alternate": ALTERNATE_KEYS[action],
+        })
+    return result
+
+
+def install(path: str, replace: set[str], reload: bool) -> dict:
+    result = {
+        "status": "ok", "pluginId": PLUGIN_ID, "installed": False, "keys": {},
+        "skipped": [], "conflicts": [], "unbound": [], "backup": None,
+        "reloaded": False, "verified": {},
+    }
+    text = read_config(path)
+    if has_dangling_marker(text, PLUGIN_ID):
+        raise HelperError("bindings.lua has an unbalanced Theme Wallpaper Cycler marker block; repair it by hand first")
+    text, _ = strip_blocks(text, PLUGIN_ID)
+    user_text = text_outside_blocks(text)
+
+    binds = live_binds()
+    keys: dict[str, str] = {}
+    unbind: list[str] = []
+
+    for action in ACTIONS:
+        key = normalize_key(DEFAULT_KEYS[action])
+        owner = live_owner(binds, key)
+        if owner is None:
+            owner = textual_owner(user_text, key)
+        ours = owner in DESCRIPTIONS.values()
+        if owner is None or ours:
+            if ours:
+                unbind.append(key)
+            keys[action] = key
+            continue
+        if action in replace:
+            unbind.append(key)
+            keys[action] = key
+            result["unbound"].append({"action": action, "key": key, "pretty": pretty_key(key), "owner": owner})
+            continue
+        result["conflicts"].append({
+            "action": action, "key": key, "pretty": pretty_key(key),
+            "owner": owner, "alternate": ALTERNATE_KEYS[action],
+        })
+        result["skipped"].append(action)
+
+    if not keys:
+        result["status"] = "blocked"
+        return result
+
+    block = render_block(keys, list(dict.fromkeys(unbind)))
+    if not text:
+        new_text = block
+    else:
+        new_text = text + ("\n" if text.endswith("\n") else "\n\n") + block
+    result["backup"] = write_config_atomic(path, new_text)
+    result["installed"] = True
+    result["keys"] = {action: pretty_key(key) for action, key in keys.items()}
+
+    if reload:
+        result["reloaded"] = reload_hyprland()
+        if result["reloaded"]:
+            result["verified"] = {action: value for action, value in ours_live(live_binds()).items() if action in keys}
+    return result
+
+
+def remove(path: str, reload: bool) -> dict:
+    result = {"status": "ok", "pluginId": PLUGIN_ID, "removed": 0, "backup": None, "reloaded": False}
+    if not os.path.lexists(path):
+        return result
+    text = read_config(path)
+    new_text, count = strip_blocks(text, PLUGIN_ID)
+    if count == 0:
+        if has_dangling_marker(text, PLUGIN_ID):
+            raise HelperError("bindings.lua has an unbalanced Theme Wallpaper Cycler marker block; repair it by hand first")
+        return result
+    result["backup"] = write_config_atomic(path, new_text)
+    result["removed"] = count
+    if reload:
+        result["reloaded"] = reload_hyprland()
+    return result
+
+
+# --- entry point ------------------------------------------------------------
+
+def print_human_status(payload: dict) -> None:
+    print(f"Config     {payload['config']}")
+    print(f"File       {payload['file']}")
+    print(f"Installed  {'yes' if payload['installed'] else 'no'}")
+    if payload["malformed"]:
+        print(f"Malformed  {', '.join(payload['malformed'])}")
+    if payload.get("hyprland"):
+        live = ", ".join(action for action, value in payload["live"].items() if value) or "none"
+        print(f"Live       {live}")
+    for conflict in payload["conflicts"]:
+        alternate = f" (alternate: {pretty_key(conflict['alternate'])})" if conflict.get("alternate") else ""
+        print(f"Conflict   {conflict['pretty']} is used by '{conflict['owner']}'{alternate}")
+
+
+def parse_replace(values: list[str]) -> set[str]:
+    actions: set[str] = set()
+    for value in values or []:
+        for item in str(value).split(","):
+            name = item.strip()
+            if not name:
+                continue
+            if name not in ACTIONS:
+                raise HelperError(f"unknown action for --replace: {name}")
+            actions.add(name)
+    return actions
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog=HELPER_NAME, description="Theme Wallpaper Cycler helper")
+    subparsers = parser.add_subparsers(dest="command")
+
+    inventory_parser = subparsers.add_parser("inventory", help="print the theme/background inventory as JSON")
+    inventory_parser.add_argument("--json", action="store_true", help="accepted for symmetry; output is always JSON")
+
+    binds_parser = subparsers.add_parser("binds", help="manage the bindings.lua block")
+    binds_parser.add_argument("action", choices=["status", "install", "remove"])
+    binds_parser.add_argument("--json", action="store_true")
+    binds_parser.add_argument("--config", default=None)
+    binds_parser.add_argument("--replace", action="append", default=[], help="take over a conflicting action (repeatable or comma-separated)")
+    binds_parser.add_argument("--no-reload", action="store_true")
+
+    subparsers.add_parser("version", help="print the helper version")
+
+    args = parser.parse_args(argv)
+
+    try:
+        if args.command == "inventory":
+            print(json.dumps(inventory(), ensure_ascii=False))
+            return 0
+        if args.command == "version":
+            print(f"{HELPER_NAME} 1")
+            return 0
+        if args.command == "binds":
+            path = args.config or bindings_path()
+            if args.action == "status":
+                payload = status(path)
+                if args.json:
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print_human_status(payload)
+                return 0
+            if args.action == "install":
+                payload = install(path, parse_replace(args.replace), reload=not args.no_reload)
+                if args.json:
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"{HELPER_NAME}: bindings installed" + (" and Hyprland reloaded" if payload["reloaded"] else ""))
+                    for conflict in payload["conflicts"]:
+                        print(f"{HELPER_NAME}: skipped {conflict['pretty']} (used by '{conflict['owner']}')")
+                return 0 if payload["status"] == "ok" else 3
+            payload = remove(path, reload=not args.no_reload)
+            if args.json:
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(f"{HELPER_NAME}: bindings removed" if payload["removed"] else f"{HELPER_NAME}: no bindings to remove")
+            return 0
+        parser.print_help()
+        return 2
+    except HelperError as error:
+        print(f"{HELPER_NAME}: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

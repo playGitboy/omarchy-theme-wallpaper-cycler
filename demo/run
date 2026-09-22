@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Deterministic, reversible offline demo. It builds a throwaway XDG tree with
+# two fictional themes, prints the inventory the service consumes, shows two
+# decisions from the pure model, then installs and removes the keybinding block
+# against a temporary bindings.lua. The real desktop is never touched.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+export HOME="$work/home"
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_STATE_HOME="$HOME/.local/state"
+export OMARCHY_PATH="$work/omarchy"
+unset HYPRLAND_INSTANCE_SIGNATURE || true
+
+mkdir -p "$OMARCHY_PATH/themes/aurora/backgrounds"
+mkdir -p "$OMARCHY_PATH/themes/basalt/backgrounds"
+: >"$OMARCHY_PATH/themes/aurora/backgrounds/1-dawn.png"
+: >"$OMARCHY_PATH/themes/aurora/backgrounds/2-noon.jpg"
+: >"$OMARCHY_PATH/themes/basalt/backgrounds/1-stone.webp"
+mkdir -p "$XDG_STATE_HOME/omarchy/current"
+printf 'aurora\n' >"$XDG_STATE_HOME/omarchy/current/theme.name"
+
+echo "== fixture check =="
+python3 -m json.tool "$root/demo/fixtures/example.json" >/dev/null
+echo "fixture ok"
+
+echo "== inventory =="
+"$root/bin/theme-cycler" inventory | python3 -m json.tool
+
+echo "== decisions from the pure model =="
+node -e '
+const M = require(process.argv[1] + "/Model.js")
+const cp = require("child_process")
+const inv = M.parseInventory(cp.execSync(process.argv[1] + "/bin/theme-cycler inventory").toString())
+console.log("themes:              " + inv.themes.map(t => t.slug).join(", "))
+console.log("next theme:          " + M.decideTheme(inv, { themeMode: "sequential" }, 1))
+console.log("next wallpaper (all):" + M.decideBackground(inv, { wallpaperScope: "all" }, 1))
+' "$root"
+
+echo "== bindings round-trip =="
+printf -- '-- user config\no.bind("SUPER + T", "Terminal", "alacritty")\n' >"$work/bindings.lua"
+"$root/bin/theme-cycler" binds install --config "$work/bindings.lua" --json --no-reload | python3 -m json.tool
+"$root/bin/theme-cycler" binds remove --config "$work/bindings.lua" --json --no-reload | python3 -m json.tool
+echo "restored bindings.lua:"
+cat "$work/bindings.lua"
+
+echo "Demo complete; nothing on the real desktop was modified."

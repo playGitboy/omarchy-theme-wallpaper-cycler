@@ -1,0 +1,28 @@
+{
+  "fixture": "io.github.playgitboy.theme-wallpaper-cycler-example",
+  "note": "Fictional inventory in the exact shape bin/theme-cycler emits. Used by demo/run and by the model tests.",
+  "schema": 1,
+  "pluginId": "io.github.playgitboy.theme-wallpaper-cycler",
+  "omarchyPath": "/usr/share/omarchy",
+  "themes": [
+    {
+      "slug": "aurora",
+      "name": "Aurora",
+      "source": "system",
+      "backgrounds": [
+        "/usr/share/omarchy/themes/aurora/backgrounds/1-dawn.png",
+        "/usr/share/omarchy/themes/aurora/backgrounds/2-noon.jpg"
+      ]
+    },
+    {
+      "slug": "basalt",
+      "name": "Basalt",
+      "source": "user",
+      "backgrounds": [
+        "/usr/share/omarchy/themes/basalt/backgrounds/1-stone.webp"
+      ]
+    }
+  ],
+  "currentTheme": "aurora",
+  "currentBackground": "/usr/share/omarchy/themes/aurora/backgrounds/1-dawn.png"
+}

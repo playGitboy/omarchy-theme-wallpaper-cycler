@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.playgitboy.theme-wallpaper-cycler",
+  "name": "Theme Wallpaper Cycler",
+  "version": "0.1.0",
+  "author": "playGitboy",
+  "license": "MIT",
+  "homepage": "https://github.com/playGitboy/omarchy-theme-wallpaper-cycler",
+  "description": "Cycle every installed Omarchy theme and wallpaper from the bar or with Super+Ctrl(+Shift)+Left/Right. Choose sequential or random order, cycle the current theme's wallpapers or every theme's, and use a panel that follows the active theme colours.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Theme Cycler",
+    "description": "One bar icon and one panel: pick the icon's bar position, choose sequential or random theme switching, choose current-theme or all-theme wallpaper rotation, enable the Super+Ctrl(+Shift)+Left/Right shortcuts, and see the current theme and wallpaper.",
+    "category": "Appearance",
+    "aliases": [
+      "theme",
+      "wallpaper",
+      "background",
+      "cycle",
+      "random",
+      "rotate"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "themeMode": "sequential",
+      "wallpaperScope": "current",
+      "wallpaperRandom": false
+    },
+    "schema": [
+      {
+        "key": "themeMode",
+        "type": "enum",
+        "label": "Theme switching",
+        "options": [
+          "sequential",
+          "random"
+        ],
+        "defaultValue": "sequential",
+        "description": "Sequential walks every installed theme in order; random jumps to a theme that is not the current one."
+      },
+      {
+        "key": "wallpaperScope",
+        "type": "enum",
+        "label": "Wallpaper source",
+        "options": [
+          "current",
+          "all"
+        ],
+        "defaultValue": "current",
+        "description": "Use the current theme's wallpapers, or every wallpaper across every installed theme."
+      },
+      {
+        "key": "wallpaperRandom",
+        "type": "boolean",
+        "label": "Random wallpaper",
+        "defaultValue": false,
+        "description": "Pick a random wallpaper from the chosen source instead of the next one in order."
+      }
+    ]
+  }
+}
