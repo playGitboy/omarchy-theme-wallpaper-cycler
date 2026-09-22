@@ -185,7 +185,7 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(400))
+    contentWidth: panel.fittedContentWidth(Style.space(340))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
     PanelKeyCatcher {
@@ -319,7 +319,7 @@ Panel {
               foreground: root.foreground
               accent: root.accent
               options: [
-                { value: "sequential", label: "Sequential (default)" },
+                { value: "sequential", label: "Sequential" },
                 { value: "random", label: "Random" }
               ]
               value: root.themeMode
@@ -348,7 +348,7 @@ Panel {
               foreground: root.foreground
               accent: root.accent
               options: [
-                { value: "current", label: "Current theme (default)" },
+                { value: "current", label: "Current theme" },
                 { value: "all", label: "All themes" }
               ]
               value: root.wallpaperScope

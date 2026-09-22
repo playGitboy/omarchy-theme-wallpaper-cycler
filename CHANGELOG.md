@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 — 2026-09-23
+
+Panel density update.
+
+- Removed redundant `(default)` labels because the selected control already communicates the active default.
+- Reduced the panel content width from 400 to 340 spacing units for a tighter, more focused layout.
+
 ## 0.1.2 — 2026-09-22
 
 Naming and compact-panel update.

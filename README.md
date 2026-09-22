@@ -56,8 +56,8 @@ Click the palette icon in the bar to open the panel.
 | Control | What it changes |
 | --- | --- |
 | Bar position | Left / Center / Right placement of the icon |
-| Theme switching | `Sequential (default)` or `Random` |
-| Wallpaper source | `Current theme (default)` or `All themes` |
+| Theme switching | `Sequential` or `Random` |
+| Wallpaper source | `Current theme` or `All themes` |
 | Random | Independent switch: pick a random wallpaper from the chosen source |
 | Shortcuts | Enable or remove the `bindings.lua` block |
 
