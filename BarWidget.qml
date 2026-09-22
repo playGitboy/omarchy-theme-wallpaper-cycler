@@ -246,7 +246,7 @@ Panel {
               spacing: Style.space(2)
 
               Text {
-                text: "Theme & Wallpaper Cycler"
+                text: "OmaCycle"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.title
@@ -358,6 +358,7 @@ Panel {
             Toggle {
               id: toggleRandom
               width: parent.width
+              height: Style.space(36)
               hasCursor: root.cursor === 3
               checked: root.wallpaperRandom
               label: "Random"

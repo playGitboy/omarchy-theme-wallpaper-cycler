@@ -1,4 +1,4 @@
-# Theme Wallpaper Cycler
+# OmaCycle — Theme & Wallpaper Cycler
 
 <p>
   <a href="https://github.com/playGitboy/omarchy-theme-wallpaper-cycler/actions/workflows/test.yml"><img alt="tests" height="20" src="https://github.com/playGitboy/omarchy-theme-wallpaper-cycler/actions/workflows/test.yml/badge.svg"></a>

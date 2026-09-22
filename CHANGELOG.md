@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 — 2026-09-22
+
+Naming and compact-panel update.
+
+- Renamed the marketplace-facing plugin to `OmaCycle — Theme & Wallpaper Cycler` and the bar label to `OmaCycle`.
+- Reduced the Random wallpaper control to the same compact height as the other panel controls.
+
 ## 0.1.1 — 2026-09-22
 
 Compatibility and readability update.
