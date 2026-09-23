@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.playgitboy.theme-wallpaper-cycler",
-  "name": "OmaCycle — Theme & Wallpaper Cycler",
-  "version": "0.1.4",
+  "id": "io.github.playgitboy.omacycle",
+  "name": "Omacycle",
+  "version": "0.1.5",
   "author": "playGitboy",
   "license": "MIT",
   "homepage": "https://github.com/playGitboy/omarchy-theme-wallpaper-cycler",
@@ -17,7 +17,7 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "OmaCycle",
+    "displayName": "Omacycle",
     "description": "One bar icon and one panel: pick the icon's bar position, choose sequential or random theme switching, choose current-theme or all-theme wallpaper rotation, enable the Super+Ctrl(+Shift)+Left/Right shortcuts, and see the current theme and wallpaper.",
     "category": "Appearance",
     "aliases": [

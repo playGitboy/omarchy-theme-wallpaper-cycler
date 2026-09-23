@@ -4,7 +4,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import "Model.js" as Model
 
-// Theme Wallpaper Cycler service.
+// Omacycle service.
 //
 // One process-wide instance owns everything that must exist exactly once:
 // the four GlobalShortcuts, the theme/background inventory, the cycling

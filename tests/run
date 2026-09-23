@@ -26,4 +26,4 @@ if command -v omarchy >/dev/null 2>&1; then
   omarchy plugin validate .
 fi
 
-echo "All Theme Wallpaper Cycler checks passed."
+echo "All Omacycle checks passed."

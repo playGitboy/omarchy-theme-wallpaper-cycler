@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Theme Wallpaper Cycler helper.
+"""Omacycle helper.
 
     theme-cycler inventory [--json]
     theme-cycler binds status  [--json]
@@ -13,9 +13,9 @@ pure Model.js decides what to switch to; this helper never decides anything.
 
 `binds` owns exactly one fenced block in ~/.config/hypr/bindings.lua:
 
-    -- BEGIN io.github.playgitboy.theme-wallpaper-cycler
+    -- BEGIN io.github.playgitboy.omacycle
     ...
-    -- END io.github.playgitboy.theme-wallpaper-cycler
+    -- END io.github.playgitboy.omacycle
 
 Everything outside that block is the user's and is never touched. Writes are
 atomic (timestamped backup, same-directory temp file, rename) and refuse
@@ -39,7 +39,7 @@ import subprocess
 import sys
 import time
 
-PLUGIN_ID = "io.github.playgitboy.theme-wallpaper-cycler"
+PLUGIN_ID = "io.github.playgitboy.omacycle"
 BEGIN = f"-- BEGIN {PLUGIN_ID}"
 END = f"-- END {PLUGIN_ID}"
 HELPER_NAME = "theme-cycler"
@@ -53,10 +53,10 @@ MEDIA_EXTENSIONS = (
 ACTIONS = ("theme-prev", "theme-next", "wallpaper-prev", "wallpaper-next")
 
 DESCRIPTIONS = {
-    "theme-prev": "Previous theme (Theme Wallpaper Cycler)",
-    "theme-next": "Next theme (Theme Wallpaper Cycler)",
-    "wallpaper-prev": "Previous wallpaper (Theme Wallpaper Cycler)",
-    "wallpaper-next": "Next wallpaper (Theme Wallpaper Cycler)",
+    "theme-prev": "Previous theme (Omacycle)",
+    "theme-next": "Next theme (Omacycle)",
+    "wallpaper-prev": "Previous wallpaper (Omacycle)",
+    "wallpaper-next": "Next wallpaper (Omacycle)",
 }
 
 DEFAULT_KEYS = {
@@ -391,7 +391,7 @@ def text_outside_blocks(text: str) -> str:
 def render_block(keys: dict[str, str], unbind: list[str]) -> str:
     lines = [
         BEGIN,
-        "-- Managed by Theme Wallpaper Cycler (bin/theme-cycler binds install|remove). Do not hand-edit.",
+        "-- Managed by Omacycle (bin/theme-cycler binds install|remove). Do not hand-edit.",
     ]
     for key in unbind:
         lines.append(f'hl.unbind("{key}")')
@@ -531,7 +531,7 @@ def install(path: str, replace: set[str], reload: bool) -> dict:
     }
     text = read_config(path)
     if has_dangling_marker(text, PLUGIN_ID):
-        raise HelperError("bindings.lua has an unbalanced Theme Wallpaper Cycler marker block; repair it by hand first")
+        raise HelperError("bindings.lua has an unbalanced Omacycle marker block; repair it by hand first")
     text, _ = strip_blocks(text, PLUGIN_ID)
     user_text = text_outside_blocks(text)
 
@@ -589,7 +589,7 @@ def remove(path: str, reload: bool) -> dict:
     new_text, count = strip_blocks(text, PLUGIN_ID)
     if count == 0:
         if has_dangling_marker(text, PLUGIN_ID):
-            raise HelperError("bindings.lua has an unbalanced Theme Wallpaper Cycler marker block; repair it by hand first")
+            raise HelperError("bindings.lua has an unbalanced Omacycle marker block; repair it by hand first")
         return result
     result["backup"] = write_config_atomic(path, new_text)
     result["removed"] = count
@@ -628,7 +628,7 @@ def parse_replace(values: list[str]) -> set[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog=HELPER_NAME, description="Theme Wallpaper Cycler helper")
+    parser = argparse.ArgumentParser(prog=HELPER_NAME, description="Omacycle helper")
     subparsers = parser.add_subparsers(dest="command")
 
     inventory_parser = subparsers.add_parser("inventory", help="print the theme/background inventory as JSON")

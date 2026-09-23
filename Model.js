@@ -1,4 +1,4 @@
-// Theme Wallpaper Cycler — pure decision model.
+// Omacycle — pure decision model.
 //
 // QML imports this module; Node tests require() it. There is no I/O, no QML
 // object, no Hyprland and no process here: every function is a deterministic
@@ -6,7 +6,7 @@
 // fictional inventories. All inventory data arrives from the Python helper and
 // is treated as untrusted input (see parseInventory).
 
-var PLUGIN_ID = "io.github.playgitboy.theme-wallpaper-cycler"
+var PLUGIN_ID = "io.github.playgitboy.omacycle"
 
 var THEME_MODES = ["sequential", "random"]
 var WALLPAPER_SCOPES = ["current", "all"]

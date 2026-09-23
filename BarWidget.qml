@@ -5,7 +5,7 @@ import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 
-// Theme Wallpaper Cycler bar widget: one icon in the bar, one settings panel.
+// Omacycle bar widget: one icon in the bar, one settings panel.
 //
 // Everything stateful lives in Service.qml (inventory, cycling, GlobalShortcuts,
 // bindings.lua manager). This file is a per-monitor view: it reads the service
@@ -171,7 +171,7 @@ Panel {
     text: "󰏘"
     tooltipText: root.serviceReady
       ? ("Theme: " + root.currentThemeLabel + " · Wallpaper: " + root.currentWallpaperLabel + "\nClick for theme & wallpaper cycling")
-      : "Theme Wallpaper Cycler — enabling…"
+      : "Omacycle — enabling…"
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.RightButton && root.serviceReady) root.service.cycleWallpaper(1)
       else root.toggle()
@@ -246,7 +246,7 @@ Panel {
               spacing: Style.space(2)
 
               Text {
-                text: "OmaCycle"
+                text: "Omacycle"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.title

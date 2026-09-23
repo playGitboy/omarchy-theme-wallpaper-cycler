@@ -1,4 +1,4 @@
-# OmaCycle — Theme & Wallpaper Cycler
+# Omacycle
 
 <p>
   <a href="https://github.com/playGitboy/omarchy-theme-wallpaper-cycler/actions/workflows/test.yml"><img alt="tests" height="20" src="https://github.com/playGitboy/omarchy-theme-wallpaper-cycler/actions/workflows/test.yml/badge.svg"></a>
@@ -43,7 +43,7 @@ omarchy plugin add https://github.com/playGitboy/omarchy-theme-wallpaper-cycler.
 Choose where the icon sits while enabling:
 
 ```bash
-omarchy plugin enable io.github.playgitboy.theme-wallpaper-cycler --section right
+omarchy plugin enable io.github.playgitboy.omacycle --section right
 ```
 
 `left`, `center`, and `right` are all valid; you can also change it any time
@@ -77,12 +77,12 @@ shortcuts for theme mode, wallpaper source, random, and enable/remove.
 ### IPC
 
 ```bash
-omarchy-shell io.github.playgitboy.theme-wallpaper-cycler status
-omarchy-shell io.github.playgitboy.theme-wallpaper-cycler themeNext
-omarchy-shell io.github.playgitboy.theme-wallpaper-cycler wallpaperPrev
-omarchy-shell io.github.playgitboy.theme-wallpaper-cycler setSetting themeMode random
-omarchy-shell io.github.playgitboy.theme-wallpaper-cycler enableKeybindings
-omarchy-shell io.github.playgitboy.theme-wallpaper-cycler disableKeybindings
+omarchy-shell io.github.playgitboy.omacycle status
+omarchy-shell io.github.playgitboy.omacycle themeNext
+omarchy-shell io.github.playgitboy.omacycle wallpaperPrev
+omarchy-shell io.github.playgitboy.omacycle setSetting themeMode random
+omarchy-shell io.github.playgitboy.omacycle enableKeybindings
+omarchy-shell io.github.playgitboy.omacycle disableKeybindings
 ```
 
 ## Settings
@@ -92,7 +92,7 @@ Settings live as flat keys on the plugin's own entry in
 
 ```json
 {
-  "id": "io.github.playgitboy.theme-wallpaper-cycler",
+  "id": "io.github.playgitboy.omacycle",
   "themeMode": "sequential",
   "wallpaperScope": "current",
   "wallpaperRandom": false
@@ -102,9 +102,9 @@ Settings live as flat keys on the plugin's own entry in
 They can also be set with `omarchy bar set`:
 
 ```bash
-omarchy bar set io.github.playgitboy.theme-wallpaper-cycler themeMode random
-omarchy bar set io.github.playgitboy.theme-wallpaper-cycler wallpaperScope all
-omarchy bar set io.github.playgitboy.theme-wallpaper-cycler wallpaperRandom true
+omarchy bar set io.github.playgitboy.omacycle themeMode random
+omarchy bar set io.github.playgitboy.omacycle wallpaperScope all
+omarchy bar set io.github.playgitboy.omacycle wallpaperRandom true
 ```
 
 ## Keybindings, conflicts, and removal
@@ -112,12 +112,12 @@ omarchy bar set io.github.playgitboy.theme-wallpaper-cycler wallpaperRandom true
 Enabling shortcuts appends one fenced block to `~/.config/hypr/bindings.lua`:
 
 ```lua
--- BEGIN io.github.playgitboy.theme-wallpaper-cycler
+-- BEGIN io.github.playgitboy.omacycle
 hl.unbind("SUPER + CTRL + LEFT")
 hl.unbind("SUPER + CTRL + RIGHT")
-o.bind("SUPER + SHIFT + CTRL + LEFT", "Previous theme (Theme Wallpaper Cycler)", hl.dsp.global("io.github.playgitboy.theme-wallpaper-cycler:theme-prev"))
+o.bind("SUPER + SHIFT + CTRL + LEFT", "Previous theme (Omacycle)", hl.dsp.global("io.github.playgitboy.omacycle:theme-prev"))
 -- ...
--- END io.github.playgitboy.theme-wallpaper-cycler
+-- END io.github.playgitboy.omacycle
 ```
 
 The helper backs the file up first (`bindings.lua.bak.<timestamp>`), writes
@@ -172,7 +172,7 @@ touches the real desktop.
 ## Update
 
 ```bash
-omarchy plugin update io.github.playgitboy.theme-wallpaper-cycler
+omarchy plugin update io.github.playgitboy.omacycle
 ```
 
 ## Removal
@@ -181,7 +181,7 @@ Remove the keybinding block from the panel first (or run
 `bin/theme-cycler binds remove`), then:
 
 ```bash
-omarchy plugin remove io.github.playgitboy.theme-wallpaper-cycler
+omarchy plugin remove io.github.playgitboy.omacycle
 ```
 
 The plugin stores nothing outside its `shell.json` entry and the fenced

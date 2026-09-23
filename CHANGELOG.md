@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5 — 2026-09-23
+
+Identity and installation compatibility update.
+
+- Migrated the third-party plugin ID to `io.github.playgitboy.omacycle`; the reserved `omarchy.*` namespace cannot be used by community plugins.
+- Shortened the marketplace and bar name to `Omacycle` while preserving the repository and all runtime behavior.
+- Kept explicit shortcut conflict detection and consent-based takeover during first-run panel setup.
+
 ## 0.1.4 — 2026-09-23
 
 Panel border alignment update.
@@ -17,7 +25,7 @@ Panel density update.
 
 Naming and compact-panel update.
 
-- Renamed the marketplace-facing plugin to `OmaCycle — Theme & Wallpaper Cycler` and the bar label to `OmaCycle`.
+- Renamed the marketplace-facing plugin to `Omacycle — Theme & Wallpaper Cycler` and the bar label to `Omacycle`.
 - Reduced the Random wallpaper control to the same compact height as the other panel controls.
 
 ## 0.1.1 — 2026-09-22
