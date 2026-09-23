@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.playgitboy.omacycle",
+  "id": "io.github.playgitboy.theme-wallpaper-cycler",
   "name": "Omacycle",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "author": "playGitboy",
   "license": "MIT",
   "homepage": "https://github.com/playGitboy/omarchy-theme-wallpaper-cycler",

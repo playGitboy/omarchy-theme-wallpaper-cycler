@@ -1,10 +1,17 @@
 # Changelog
 
+## 0.1.6 — 2026-09-23
+
+Marketplace continuity update.
+
+- Restored the already-listed plugin ID `io.github.playgitboy.theme-wallpaper-cycler` while keeping the concise display name `Omacycle`.
+- Preserved the compact panel, shortcut conflict detection, and consent-based takeover behavior.
+
 ## 0.1.5 — 2026-09-23
 
 Identity and installation compatibility update.
 
-- Migrated the third-party plugin ID to `io.github.playgitboy.omacycle`; the reserved `omarchy.*` namespace cannot be used by community plugins.
+- Migrated the third-party plugin ID to `io.github.playgitboy.theme-wallpaper-cycler`; the reserved `omarchy.*` namespace cannot be used by community plugins.
 - Shortened the marketplace and bar name to `Omacycle` while preserving the repository and all runtime behavior.
 - Kept explicit shortcut conflict detection and consent-based takeover during first-run panel setup.
 

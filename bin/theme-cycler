@@ -13,9 +13,9 @@ pure Model.js decides what to switch to; this helper never decides anything.
 
 `binds` owns exactly one fenced block in ~/.config/hypr/bindings.lua:
 
-    -- BEGIN io.github.playgitboy.omacycle
+    -- BEGIN io.github.playgitboy.theme-wallpaper-cycler
     ...
-    -- END io.github.playgitboy.omacycle
+    -- END io.github.playgitboy.theme-wallpaper-cycler
 
 Everything outside that block is the user's and is never touched. Writes are
 atomic (timestamped backup, same-directory temp file, rename) and refuse
@@ -39,7 +39,7 @@ import subprocess
 import sys
 import time
 
-PLUGIN_ID = "io.github.playgitboy.omacycle"
+PLUGIN_ID = "io.github.playgitboy.theme-wallpaper-cycler"
 BEGIN = f"-- BEGIN {PLUGIN_ID}"
 END = f"-- END {PLUGIN_ID}"
 HELPER_NAME = "theme-cycler"

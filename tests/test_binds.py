@@ -18,8 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 HELPER = ROOT / "bin" / "theme-cycler"
 
-BEGIN = "-- BEGIN io.github.playgitboy.omacycle"
-END = "-- END io.github.playgitboy.omacycle"
+BEGIN = "-- BEGIN io.github.playgitboy.theme-wallpaper-cycler"
+END = "-- END io.github.playgitboy.theme-wallpaper-cycler"
 
 
 class BindsTest(unittest.TestCase):
@@ -92,7 +92,7 @@ class BindsTest(unittest.TestCase):
         self.assertNotIn("wallpaper-prev", payload["keys"])
         self.assertTrue(any(c["action"] == "wallpaper-prev" for c in payload["conflicts"]))
         text = self.config.read_text()
-        self.assertNotIn('hl.dsp.global("io.github.playgitboy.omacycle:wallpaper-prev")', text)
+        self.assertNotIn('hl.dsp.global("io.github.playgitboy.theme-wallpaper-cycler:wallpaper-prev")', text)
 
     def test_replace_takes_over_conflicting_binding(self) -> None:
         self.config.write_text('o.bind("SUPER + CTRL + LEFT", "My wallpaper", "~/bin/wallpaper previous")\n')
@@ -101,7 +101,7 @@ class BindsTest(unittest.TestCase):
         self.assertTrue(any(entry["action"] == "wallpaper-prev" for entry in payload["unbound"]))
         text = self.config.read_text()
         self.assertIn('hl.unbind("SUPER + CTRL + LEFT")', text)
-        self.assertIn('hl.dsp.global("io.github.playgitboy.omacycle:wallpaper-prev")', text)
+        self.assertIn('hl.dsp.global("io.github.playgitboy.theme-wallpaper-cycler:wallpaper-prev")', text)
 
     def test_blocked_when_every_action_conflicts(self) -> None:
         self.config.write_text(

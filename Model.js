@@ -6,7 +6,7 @@
 // fictional inventories. All inventory data arrives from the Python helper and
 // is treated as untrusted input (see parseInventory).
 
-var PLUGIN_ID = "io.github.playgitboy.omacycle"
+var PLUGIN_ID = "io.github.playgitboy.theme-wallpaper-cycler"
 
 var THEME_MODES = ["sequential", "random"]
 var WALLPAPER_SCOPES = ["current", "all"]

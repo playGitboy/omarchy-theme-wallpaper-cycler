@@ -1,8 +1,8 @@
 {
-  "fixture": "io.github.playgitboy.omacycle-example",
+  "fixture": "io.github.playgitboy.theme-wallpaper-cycler-example",
   "note": "Fictional inventory in the exact shape bin/theme-cycler emits. Used by demo/run and by the model tests.",
   "schema": 1,
-  "pluginId": "io.github.playgitboy.omacycle",
+  "pluginId": "io.github.playgitboy.theme-wallpaper-cycler",
   "omarchyPath": "/usr/share/omarchy",
   "themes": [
     {
