@@ -115,6 +115,75 @@ class InventoryTest(unittest.TestCase):
         data = self.inventory()
         self.assertEqual([theme["slug"] for theme in data["themes"]], ["linked-theme"])
 
+    def test_order_matches_omarchy_find_sort(self) -> None:
+        # LC_ALL=C keeps the expected order deterministic on any CI host.
+        self.env["LC_ALL"] = "C"
+        self.env["LANG"] = "C"
+        write_media(self.omarchy / "themes" / "ord" / "backgrounds", ["b.jpg", "A.jpg", "中.png", "notes.txt"])
+        write_media(self.home / ".config" / "omarchy" / "backgrounds" / "ord", ["c.jpg"])
+        state = self.home / ".local" / "state" / "omarchy" / "current"
+        state.mkdir(parents=True)
+        (state / "theme.name").write_text("ord\n")
+
+        data = self.inventory()
+        ours = [Path(path).name for path in data["themes"][0]["backgrounds"]]
+
+        dirs = [
+            str(self.home / ".config" / "omarchy" / "backgrounds" / "ord"),
+            str(self.omarchy / "themes" / "ord" / "backgrounds"),
+        ]
+        extensions = []
+        for extension in (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi"):
+            extensions.extend(["-o", "-iname", f"*{extension}"])
+        found = subprocess.run(
+            ["find", "-L", dirs[0], dirs[1], "-maxdepth", "1", "-type", "f", "(", *extensions[1:], ")", "-print0"],
+            capture_output=True, env=self.env, timeout=30,
+        )
+        sorted_out = subprocess.run(["sort", "-z"], input=found.stdout, capture_output=True, env=self.env, timeout=30)
+        expected = [Path(part.decode()).name for part in sorted_out.stdout.split(b"\0") if part]
+
+        self.assertEqual(ours, expected)
+        self.assertNotIn("notes.txt", ours)
+
+    def test_current_theme_prefers_the_staged_copy(self) -> None:
+        write_media(self.omarchy / "themes" / "cur" / "backgrounds", ["sys1.jpg"])
+        write_media(self.home / ".local" / "state" / "omarchy" / "current" / "theme" / "backgrounds", ["staged1.jpg"])
+        write_media(self.home / ".config" / "omarchy" / "backgrounds" / "cur", ["user1.jpg"])
+        state = self.home / ".local" / "state" / "omarchy" / "current"
+        (state / "theme.name").write_text("cur\n")
+
+        names = [Path(path).name for path in self.inventory()["themes"][0]["backgrounds"]]
+        self.assertIn("staged1.jpg", names)
+        self.assertIn("user1.jpg", names)
+        self.assertNotIn("sys1.jpg", names)
+
+    def test_theme_order_matches_theme_switcher(self) -> None:
+        # The theme menu feeds omarchy-menu-images a preview dir named
+        # <theme>.<ext>; our order must equal that dir's find|sort -z order,
+        # including prefix collisions like catppuccin / catppuccin-latte.
+        self.env["LC_ALL"] = "C"
+        self.env["LANG"] = "C"
+        slugs = ["catppuccin", "catppuccin-latte", "tokyo-night", "2-haxorz"]
+        for slug in slugs:
+            write_media(self.omarchy / "themes" / slug / "backgrounds", ["a.png"])
+
+        ours = [theme["slug"] for theme in self.inventory()["themes"]]
+
+        previews = Path(self.tmp.name) / "previews"
+        previews.mkdir()
+        for slug in slugs:
+            (previews / f"{slug}.png").write_bytes(b"x")
+        listing = subprocess.run(
+            ["find", "-L", str(previews), "-maxdepth", "1", "-type", "f", "-printf", "%f\n"],
+            capture_output=True, env=self.env, timeout=30,
+        )
+        sorted_out = subprocess.run(["sort"], input=listing.stdout, capture_output=True, env=self.env, timeout=30)
+        expected = [line.decode().rsplit(".", 1)[0] for line in sorted_out.stdout.splitlines() if line]
+
+        self.assertEqual(ours, expected)
+        self.assertEqual(ours[0], "2-haxorz")
+        self.assertLess(ours.index("catppuccin-latte"), ours.index("catppuccin"))
+
     def test_pretty_names(self) -> None:
         write_media(self.omarchy / "themes" / "2-haxorz" / "backgrounds", ["a.png"])
         write_media(self.omarchy / "themes" / "tokyo-night" / "backgrounds", ["b.png"])

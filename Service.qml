@@ -42,7 +42,7 @@ Item {
   readonly property string shellConfigPath: configHome + "/omarchy/shell.json"
 
   // ---- settings -----------------------------------------------------------
-  // Single source of truth for the three user options. Persisted on the
+  // Single source of truth for the five user options. Persisted on the
   // plugin's own shell.json entry (bar layout entry when the widget is on the
   // bar, plugins[] entry otherwise) through the scoped shell API.
   property var settings: Model.normalizeSettings({})
@@ -50,6 +50,8 @@ Item {
   readonly property string themeMode: settings.themeMode
   readonly property string wallpaperScope: settings.wallpaperScope
   readonly property bool wallpaperRandom: settings.wallpaperRandom
+  readonly property bool autoWallpaper: settings.autoWallpaper
+  readonly property int autoWallpaperMinutes: settings.autoWallpaperMinutes
   property string barSection: ""
 
   // ---- inventory ----------------------------------------------------------
@@ -63,8 +65,9 @@ Item {
   readonly property int currentBackgroundCount: inventoryCounts.current
   property double inventoryAt: 0
   property bool inventoryBusy: false
-  property string pendingKind: ""
-  property int pendingDirection: 0
+  // Queue shortcut/timer requests that arrive while inventory is refreshing;
+  // the previous single pending slot could silently drop one request.
+  property var pendingCycles: []
 
   // ---- bindings -----------------------------------------------------------
   property var bindsStatus: ({})
@@ -138,11 +141,14 @@ Item {
 
   // ---- settings writes ----------------------------------------------------
   function setSetting(name, value) {
-    if (name !== "themeMode" && name !== "wallpaperScope" && name !== "wallpaperRandom") return false
+    if (name !== "themeMode" && name !== "wallpaperScope" && name !== "wallpaperRandom"
+        && name !== "autoWallpaper" && name !== "autoWallpaperMinutes") return false
     var current = {
       themeMode: root.settings.themeMode,
       wallpaperScope: root.settings.wallpaperScope,
-      wallpaperRandom: root.settings.wallpaperRandom
+      wallpaperRandom: root.settings.wallpaperRandom,
+      autoWallpaper: root.settings.autoWallpaper,
+      autoWallpaperMinutes: root.settings.autoWallpaperMinutes
     }
     current[name] = value
     var entry = Model.settingsEntry(root.settingsEntry, current)
@@ -188,23 +194,39 @@ Item {
       } else if (root.themes.length === 0) {
         root.notify("Could not read the theme inventory")
       }
-      if (root.pendingRefresh) { root.pendingRefresh = false; root.refreshInventory() }
-      if (root.pendingKind !== "") {
-        var kind = root.pendingKind
-        var direction = root.pendingDirection
-        root.pendingKind = ""
-        root.pendingDirection = 0
-        root.performCycle(kind, direction)
+      if (root.pendingRefresh) {
+        root.pendingRefresh = false
+        root.refreshInventory()
+      } else {
+        root.drainPendingCycles()
       }
     }
   }
 
+  // Run all requests collected while inventory was unavailable. The optimistic
+  // inventory update in performCycle keeps sequential requests from collapsing
+  // onto the same wallpaper or theme.
+  function drainPendingCycles() {
+    while (root.pendingCycles.length > 0) {
+      var nextCycle = root.pendingCycles[0]
+      root.pendingCycles = root.pendingCycles.slice(1)
+      root.performCycle(nextCycle.kind, nextCycle.direction)
+    }
+  }
+
   // ---- cycling ------------------------------------------------------------
+  function queueCycle(kind, direction) {
+    // Keep a bounded queue so a slow helper cannot accumulate unbounded key
+    // repeat or timer requests. Preserve the newest requested actions.
+    var queue = root.pendingCycles.slice(-7)
+    queue.push({ kind: kind, direction: direction })
+    root.pendingCycles = queue
+  }
+
   function ensureInventoryThen(kind, direction) {
     var stale = root.themes.length === 0 || (Date.now() - root.inventoryAt) > 2000
     if (stale) {
-      root.pendingKind = kind
-      root.pendingDirection = direction
+      root.queueCycle(kind, direction)
       root.refreshInventory()
     } else {
       root.performCycle(kind, direction)
@@ -261,6 +283,24 @@ Item {
     repeat: true
     running: true
     onTriggered: root.refreshInventory()
+  }
+
+  // One process-wide repeating timer. The service, not each per-monitor widget,
+  // owns automatic wallpaper rotation so multiple outputs never multiply the
+  // user's requested cadence.
+  Timer {
+    id: autoWallpaperTimer
+    interval: root.autoWallpaperMinutes * 60000
+    repeat: true
+    running: root.autoWallpaper === true
+    onTriggered: root.cycleWallpaper(1)
+  }
+
+  Connections {
+    target: root
+    function onAutoWallpaperMinutesChanged() {
+      if (autoWallpaperTimer.running) autoWallpaperTimer.restart()
+    }
   }
 
   // ---- bindings manager ---------------------------------------------------
@@ -353,6 +393,8 @@ Item {
         themeMode: root.themeMode,
         wallpaperScope: root.wallpaperScope,
         wallpaperRandom: root.wallpaperRandom,
+        autoWallpaper: root.autoWallpaper,
+        autoWallpaperMinutes: root.autoWallpaperMinutes,
         themeCount: root.themeCount,
         currentTheme: root.currentThemeSlug,
         currentBackground: root.currentBackgroundPath,

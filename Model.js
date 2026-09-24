@@ -14,6 +14,10 @@ var WALLPAPER_SCOPES = ["current", "all"]
 var DEFAULT_THEME_MODE = "sequential"
 var DEFAULT_WALLPAPER_SCOPE = "current"
 var DEFAULT_WALLPAPER_RANDOM = false
+var DEFAULT_AUTO_WALLPAPER = false
+var DEFAULT_AUTO_WALLPAPER_MINUTES = 30
+var MIN_AUTO_WALLPAPER_MINUTES = 1
+var MAX_AUTO_WALLPAPER_MINUTES = 10080
 
 // The four global shortcuts the service registers and the bindings manager
 // installs. `global` is the GlobalShortcut name; `action` is the binds action.
@@ -47,6 +51,12 @@ function normalizeBool(value, fallback) {
   if (text === "true" || text === "on" || text === "1" || text === "yes") return true
   if (text === "false" || text === "off" || text === "0" || text === "no") return false
   return fallback === true
+}
+
+function normalizeAutoWallpaperMinutes(value) {
+  var number = Math.floor(Number(value))
+  if (!isFinite(number)) number = DEFAULT_AUTO_WALLPAPER_MINUTES
+  return Math.max(MIN_AUTO_WALLPAPER_MINUTES, Math.min(MAX_AUTO_WALLPAPER_MINUTES, number))
 }
 
 // ---- contrast-safe popup colors -------------------------------------------
@@ -127,19 +137,21 @@ function readableTextColor(background, candidates, minimumRatio) {
   return relativeLuminance(background) > 0.5 ? "#000000" : "#ffffff"
 }
 
-// Read the three user settings out of a raw shell.json entry, clamping every
+// Read the five user settings out of a raw shell.json entry, clamping every
 // field so a hand-edited value can never drive an unknown branch.
 function normalizeSettings(entry) {
   var raw = isPlainObject(entry) ? entry : {}
   return {
     themeMode: normalizeThemeMode(raw.themeMode),
     wallpaperScope: normalizeWallpaperScope(raw.wallpaperScope),
-    wallpaperRandom: normalizeBool(raw.wallpaperRandom, DEFAULT_WALLPAPER_RANDOM)
+    wallpaperRandom: normalizeBool(raw.wallpaperRandom, DEFAULT_WALLPAPER_RANDOM),
+    autoWallpaper: normalizeBool(raw.autoWallpaper, DEFAULT_AUTO_WALLPAPER),
+    autoWallpaperMinutes: normalizeAutoWallpaperMinutes(raw.autoWallpaperMinutes)
   }
 }
 
 // Build the entry that gets written back to shell.json: keep unknown keys the
-// user or another tool may have added, overwrite only the three we own.
+// user or another tool may have added, overwrite only the five we own.
 function settingsEntry(existing, settings) {
   var entry = { id: PLUGIN_ID }
   if (isPlainObject(existing)) {
@@ -148,6 +160,8 @@ function settingsEntry(existing, settings) {
   entry.themeMode = normalizeThemeMode(settings ? settings.themeMode : undefined)
   entry.wallpaperScope = normalizeWallpaperScope(settings ? settings.wallpaperScope : undefined)
   entry.wallpaperRandom = normalizeBool(settings ? settings.wallpaperRandom : undefined, DEFAULT_WALLPAPER_RANDOM)
+  entry.autoWallpaper = normalizeBool(settings ? settings.autoWallpaper : undefined, DEFAULT_AUTO_WALLPAPER)
+  entry.autoWallpaperMinutes = normalizeAutoWallpaperMinutes(settings ? settings.autoWallpaperMinutes : undefined)
   return entry
 }
 
@@ -193,7 +207,6 @@ function parseInventory(raw) {
     var theme = normalizeTheme(themes[i])
     if (theme) out.themes.push(theme)
   }
-  out.themes = sortThemes(out.themes)
   out.currentTheme = String(data.currentTheme === undefined || data.currentTheme === null ? "" : data.currentTheme).trim()
   out.currentBackground = String(data.currentBackground === undefined || data.currentBackground === null ? "" : data.currentBackground).trim()
   var count = 0
@@ -202,14 +215,11 @@ function parseInventory(raw) {
   return out
 }
 
-function sortThemes(themes) {
-  var copy = Array.isArray(themes) ? themes.slice() : []
-  copy.sort(function (a, b) {
-    var left = a && a.slug ? String(a.slug) : ""
-    var right = b && b.slug ? String(b.slug) : ""
-    return left < right ? -1 : (left > right ? 1 : 0)
-  })
-  return copy
+// Theme order is decided by the Python helper, which reproduces Omarchy's own
+// theme-switcher ordering. The model only copies the list so no re-sort can
+// silently diverge from what the system picker shows.
+function themeList(themes) {
+  return Array.isArray(themes) ? themes.slice() : []
 }
 
 function themeIndex(themes, slug) {
@@ -229,7 +239,7 @@ function themeBySlug(themes, slug) {
 // Sequential theme step with wrap-around. An unknown current theme lands on the
 // first entry going forward and the last going backward.
 function nextTheme(themes, currentSlug, direction) {
-  var list = sortThemes(themes)
+  var list = themeList(themes)
   if (list.length === 0) return ""
   var step = Number(direction) < 0 ? -1 : 1
   var index = themeIndex(list, currentSlug)
@@ -239,7 +249,7 @@ function nextTheme(themes, currentSlug, direction) {
 
 // Random theme that is never the current one while another choice exists.
 function randomTheme(themes, currentSlug, rng) {
-  var list = sortThemes(themes)
+  var list = themeList(themes)
   if (list.length === 0) return ""
   var current = String(currentSlug === undefined || currentSlug === null ? "" : currentSlug)
   var candidates = []
@@ -265,7 +275,7 @@ function pickIndex(length, rng) {
 // "current" is the active theme's backgrounds; "all" walks every installed
 // theme in slug order and each theme's backgrounds in path order.
 function flattenBackgrounds(themes, scope, currentThemeSlug) {
-  var list = sortThemes(themes)
+  var list = themeList(themes)
   var rows = []
   if (normalizeWallpaperScope(scope) === "current") {
     var theme = themeBySlug(list, currentThemeSlug)
@@ -360,12 +370,17 @@ if (typeof module !== "undefined") {
     DEFAULT_THEME_MODE: DEFAULT_THEME_MODE,
     DEFAULT_WALLPAPER_SCOPE: DEFAULT_WALLPAPER_SCOPE,
     DEFAULT_WALLPAPER_RANDOM: DEFAULT_WALLPAPER_RANDOM,
+    DEFAULT_AUTO_WALLPAPER: DEFAULT_AUTO_WALLPAPER,
+    DEFAULT_AUTO_WALLPAPER_MINUTES: DEFAULT_AUTO_WALLPAPER_MINUTES,
+    MIN_AUTO_WALLPAPER_MINUTES: MIN_AUTO_WALLPAPER_MINUTES,
+    MAX_AUTO_WALLPAPER_MINUTES: MAX_AUTO_WALLPAPER_MINUTES,
     SHORTCUTS: SHORTCUTS,
     BAR_SECTIONS: BAR_SECTIONS,
     isPlainObject: isPlainObject,
     normalizeThemeMode: normalizeThemeMode,
     normalizeWallpaperScope: normalizeWallpaperScope,
     normalizeBool: normalizeBool,
+    normalizeAutoWallpaperMinutes: normalizeAutoWallpaperMinutes,
     colorParts: colorParts,
     relativeLuminance: relativeLuminance,
     contrastRatio: contrastRatio,
@@ -374,7 +389,7 @@ if (typeof module !== "undefined") {
     settingsEntry: settingsEntry,
     prettyName: prettyName,
     parseInventory: parseInventory,
-    sortThemes: sortThemes,
+    themeList: themeList,
     themeIndex: themeIndex,
     themeBySlug: themeBySlug,
     nextTheme: nextTheme,

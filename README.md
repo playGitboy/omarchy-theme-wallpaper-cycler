@@ -59,11 +59,12 @@ Click the palette icon in the bar to open the panel.
 | Theme switching | `Sequential` or `Random` |
 | Wallpaper source | `Current theme` or `All themes` |
 | Random | Independent switch: pick a random wallpaper from the chosen source |
+| Auto switch | Optional repeating interval in minutes; disabled by default |
 | Shortcuts | Enable or remove the `bindings.lua` block |
 
 Keyboard, once the panel is open: `j`/`k` or `↑`/`↓` move, `h`/`l` change the
-focused control, `Enter` activates, `Esc` closes. `t`, `w`, `r`, and `e` are
-shortcuts for theme mode, wallpaper source, random, and enable/remove.
+focused control, `Enter` activates, `Esc` closes. `t`, `w`, `r`, `a`, and `e` are
+shortcuts for theme mode, wallpaper source, random, auto switch, and enable/remove.
 
 ### Default shortcuts
 
@@ -95,7 +96,9 @@ Settings live as flat keys on the plugin's own entry in
   "id": "io.github.playgitboy.theme-wallpaper-cycler",
   "themeMode": "sequential",
   "wallpaperScope": "current",
-  "wallpaperRandom": false
+  "wallpaperRandom": false,
+  "autoWallpaper": false,
+  "autoWallpaperMinutes": 30
 }
 ```
 
@@ -105,6 +108,8 @@ They can also be set with `omarchy bar set`:
 omarchy bar set io.github.playgitboy.theme-wallpaper-cycler themeMode random
 omarchy bar set io.github.playgitboy.theme-wallpaper-cycler wallpaperScope all
 omarchy bar set io.github.playgitboy.theme-wallpaper-cycler wallpaperRandom true
+omarchy bar set io.github.playgitboy.theme-wallpaper-cycler autoWallpaper true
+omarchy bar set io.github.playgitboy.theme-wallpaper-cycler autoWallpaperMinutes 30
 ```
 
 ## Keybindings, conflicts, and removal
@@ -146,8 +151,16 @@ over; re-add your own binding if you want it back.
 - Popup content chooses the active popup text token first and verifies its
   contrast against the popup background, falling back to a readable black or
   white color for themes with inconsistent bar and popup tokens.
-- Wallpaper ordering uses theme slug plus filename rather than absolute paths,
-  so the same inventory has the same order on different computers.
+- Wallpaper ordering reproduces Omarchy's own `find … | sort -z` enumeration
+  (the same order as the Super+Ctrl+Space background switcher and
+  `omarchy theme bg next`), including the current theme's staged background
+  directory and the session's locale collation. Ordering therefore matches what
+  the user sees in the stock switcher on every machine.
+- Theme ordering matches the Super+Shift+Ctrl+Space theme switcher by sorting
+  on the same `<theme>.<preview-extension>` names that the switcher's preview
+  menu uses, so prefix-named themes (`catppuccin`, `catppuccin-latte`) advance
+  in the same order the picker shows. The model never re-sorts the helper's
+  list.
 - One service instance owns the shortcuts and the inventory; the bar widget is
   a per-monitor view, so the four shortcuts are registered once regardless of
   how many screens or bar copies exist.

@@ -42,8 +42,14 @@ Panel {
   // shell.json entry so the panel still renders a coherent default.
   readonly property string themeMode: root.serviceReady ? service.themeMode : setting("themeMode", Model.DEFAULT_THEME_MODE)
   readonly property string wallpaperScope: root.serviceReady ? service.wallpaperScope : setting("wallpaperScope", Model.DEFAULT_WALLPAPER_SCOPE)
-  readonly property bool wallpaperRandom: root.serviceReady ? service.wallpaperRandom === true : setting("wallpaperRandom", Model.DEFAULT_WALLPAPER_RANDOM) === true
-  readonly property string barSection: root.serviceReady ? String(service.barSection || "") : ""
+  readonly property bool wallpaperRandom: root.serviceReady ? root.service.wallpaperRandom === true : setting("wallpaperRandom", Model.DEFAULT_WALLPAPER_RANDOM) === true
+  readonly property bool autoWallpaper: root.serviceReady ? root.service.autoWallpaper === true : setting("autoWallpaper", Model.DEFAULT_AUTO_WALLPAPER) === true
+  readonly property int autoWallpaperMinutes: root.serviceReady ? root.service.autoWallpaperMinutes : Number(setting("autoWallpaperMinutes", Model.DEFAULT_AUTO_WALLPAPER_MINUTES))
+  readonly property string barSection: root.serviceReady ? String(root.service.barSection || "") : ""
+  // Mirrors the switcher track width ToggleSwitch derives from the theme, so
+  // the overlaid minute input clears the switch on every spacing scale.
+  readonly property real switchTrackWidth: Math.round(Math.max(22, Math.round(Style.spacing.controlHeight * 0.55)) * 1.9)
+  readonly property real autoSwitchReserve: Style.spacing.rowPaddingX + switchTrackWidth + Style.space(6)
 
   readonly property string currentThemeLabel: {
     var themes = root.serviceReady ? service.themes : []
@@ -67,10 +73,10 @@ Panel {
   readonly property bool bindsBusy: root.serviceReady && service.bindsBusy
 
   // Flat keyboard cursor: 0 placement, 1 theme mode, 2 wallpaper scope,
-  // 3 random, 4 shortcut setup. h/l changes the focused control; Enter
-  // activates it.
+  // 3 random, 4 automatic wallpaper, 5 shortcut setup. h/l changes the
+  // focused control; Enter activates it.
   property int cursor: 0
-  readonly property int cursorMax: 4
+  readonly property int cursorMax: 5
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -90,6 +96,7 @@ Panel {
     if (index === 1) return bgThemeMode
     if (index === 2) return bgWallpaperScope
     if (index === 3) return toggleRandom
+    if (index === 4) return autoToggle
     return bindsButton
   }
 
@@ -120,12 +127,15 @@ Panel {
       root.setWallpaperScope(root.wallpaperScope === "current" ? "all" : "current")
     } else if (cursor === 3) {
       root.toggleWallpaperRandom()
+    } else if (cursor === 4) {
+      root.toggleAutoWallpaper()
     }
   }
 
   function activateCursor() {
     if (cursor === 3) root.toggleWallpaperRandom()
-    else if (cursor === 4) root.primaryBindsAction()
+    else if (cursor === 4) root.toggleAutoWallpaper()
+    else if (cursor === 5) root.primaryBindsAction()
   }
 
   function moveBar(section) {
@@ -142,6 +152,14 @@ Panel {
 
   function toggleWallpaperRandom() {
     if (root.serviceReady) root.service.setSetting("wallpaperRandom", !root.wallpaperRandom)
+  }
+
+  function toggleAutoWallpaper() {
+    if (root.serviceReady) root.service.setSetting("autoWallpaper", !root.autoWallpaper)
+  }
+
+  function setAutoWallpaperMinutes(value) {
+    if (root.serviceReady) root.service.setSetting("autoWallpaperMinutes", value)
   }
 
   function conflictActions() {
@@ -203,6 +221,7 @@ Panel {
         if (key === "t") root.setThemeMode(root.themeMode === "sequential" ? "random" : "sequential")
         else if (key === "w") root.setWallpaperScope(root.wallpaperScope === "current" ? "all" : "current")
         else if (key === "r") root.toggleWallpaperRandom()
+        else if (key === "a") root.toggleAutoWallpaper()
         else if (key === "e") root.primaryBindsAction()
       }
 
@@ -371,6 +390,72 @@ Panel {
               fontFamily: root.fontFamily
               onClicked: root.toggleWallpaperRandom()
             }
+
+            // Same full-width bordered row as Random, with the minute input
+            // overlaid just left of the switch so both rows share identical
+            // left and right edges.
+            Toggle {
+              id: autoToggle
+              x: Style.space(2)
+              width: parent.width - Style.space(4)
+              height: Style.space(36)
+              hasCursor: root.cursor === 4
+              checked: root.autoWallpaper
+              label: "Auto switch"
+              foreground: root.foreground
+              accent: root.accent
+              fontFamily: root.fontFamily
+              onClicked: root.toggleAutoWallpaper()
+
+              Row {
+                id: autoMinutesRow
+                z: 2
+                visible: root.autoWallpaper
+                anchors.right: parent.right
+                anchors.rightMargin: root.autoSwitchReserve
+                anchors.verticalCenter: parent.verticalCenter
+                height: Style.spacing.controlHeight
+                spacing: Style.space(4)
+
+                NumberField {
+                  id: autoMinutes
+                  label: ""
+                  value: root.autoWallpaperMinutes
+                  from: Model.MIN_AUTO_WALLPAPER_MINUTES
+                  to: Model.MAX_AUTO_WALLPAPER_MINUTES
+                  stepSize: 1
+                  fieldWidth: Style.space(60)
+                  foreground: root.foreground
+                  accent: root.accent
+                  fontFamily: root.fontFamily
+                  z: 1
+                  onModified: root.setAutoWallpaperMinutes(value)
+                }
+
+                Text {
+                  text: "min"
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  height: parent.height
+                  z: 1
+                  verticalAlignment: Text.AlignVCenter
+                }
+              }
+
+              // Only the empty gap is a shield. Keep the actual NumberField
+              // above it so keyboard editing and mouse interaction work.
+              MouseArea {
+                z: 1
+                anchors.left: parent.left
+                anchors.right: autoMinutesRow.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                acceptedButtons: Qt.AllButtons
+                propagateComposedEvents: false
+                onPressed: mouse => mouse.accepted = true
+              }
+            }
           }
 
           PanelSeparator { foreground: root.foreground }
@@ -421,7 +506,7 @@ Panel {
               x: Style.space(2)
               width: parent.width - Style.space(4)
               focusable: false
-              hasCursor: root.cursor === 4
+              hasCursor: root.cursor === 5
               bordered: true
               text: root.bindsButtonLabel()
               enabled: root.serviceReady && !root.bindsBusy
@@ -429,7 +514,7 @@ Panel {
               accent: root.accent
               fontFamily: root.fontFamily
               onClicked: {
-                root.cursor = 4
+                root.cursor = 5
                 root.primaryBindsAction()
               }
             }

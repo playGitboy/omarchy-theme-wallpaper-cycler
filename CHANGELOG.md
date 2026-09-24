@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.8 — 2026-09-24
+
+Automatic switching robustness update.
+
+- Prevented clicks in the gap beside the automatic interval editor from toggling the parent switch.
+- Restarted the automatic timer when its interval changes so a new value starts a fresh countdown.
+- Bounded pending cycle requests while inventory refreshes, preventing repeated shortcuts or timer events from accumulating without limit.
+- Added the `a` keyboard shortcut and updated settings documentation for automatic switching.
+
+## 0.1.7 — 2026-09-23
+
+Automatic wallpaper switching and Omarchy-order wallpaper rotation.
+
+- Added a disabled-by-default compact Auto switch control with a minute interval input in the Wallpaper Switching section.
+- Automatic rotation reuses the selected current-theme/all-themes source and random/sequential behavior from the existing settings.
+- The repeating timer is owned by the singleton service, so multi-monitor bars do not duplicate automatic changes.
+- Sequential wallpaper order now matches Omarchy's own `find … | sort -z` order (the Super+Ctrl+Space background switcher and `omarchy theme bg next`), including locale collation and the current theme's staged background directory, instead of a filename-only casefold sort.
+- Theme order now matches the Super+Shift+Ctrl+Space theme switcher: themes are sorted by the same locale collation of the switcher's `<theme>.<preview-extension>` preview names, and the model no longer re-sorts the helper's list.
+
 ## 0.1.6 — 2026-09-23
 
 Marketplace continuity update.

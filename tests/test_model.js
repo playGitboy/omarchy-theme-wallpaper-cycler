@@ -53,7 +53,9 @@ test("normalizeSettings defaults and clamps", () => {
   assert.deepStrictEqual(M.normalizeSettings({}), {
     themeMode: "sequential",
     wallpaperScope: "current",
-    wallpaperRandom: false
+    wallpaperRandom: false,
+    autoWallpaper: false,
+    autoWallpaperMinutes: 30
   })
   assert.strictEqual(M.normalizeSettings({ themeMode: "RANDOM" }).themeMode, "random")
   assert.strictEqual(M.normalizeSettings({ themeMode: "bogus" }).themeMode, "sequential")
@@ -62,19 +64,25 @@ test("normalizeSettings defaults and clamps", () => {
   assert.strictEqual(M.normalizeSettings({ wallpaperRandom: "on" }).wallpaperRandom, true)
   assert.strictEqual(M.normalizeSettings({ wallpaperRandom: "off" }).wallpaperRandom, false)
   assert.strictEqual(M.normalizeSettings({ wallpaperRandom: 1 }).wallpaperRandom, true)
+  assert.strictEqual(M.normalizeSettings({ autoWallpaper: "on", autoWallpaperMinutes: 0 }).autoWallpaper, true)
+  assert.strictEqual(M.normalizeSettings({ autoWallpaperMinutes: 99999 }).autoWallpaperMinutes, 10080)
 })
 
 test("settingsEntry preserves unknown keys and overwrites owned ones", () => {
   const entry = M.settingsEntry({ id: "x", keepMe: 7, themeMode: "random" }, {
     themeMode: "sequential",
     wallpaperScope: "all",
-    wallpaperRandom: true
+    wallpaperRandom: true,
+    autoWallpaper: true,
+    autoWallpaperMinutes: 45
   })
   assert.strictEqual(entry.id, M.PLUGIN_ID)
   assert.strictEqual(entry.keepMe, 7)
   assert.strictEqual(entry.themeMode, "sequential")
   assert.strictEqual(entry.wallpaperScope, "all")
   assert.strictEqual(entry.wallpaperRandom, true)
+  assert.strictEqual(entry.autoWallpaper, true)
+  assert.strictEqual(entry.autoWallpaperMinutes, 45)
 })
 
 test("prettyName matches omarchy theme list", () => {
@@ -94,14 +102,24 @@ test("parseInventory rejects malformed input without throwing", () => {
   assert.strictEqual(mixed.themes[0].slug, "ok")
 })
 
-test("parseInventory sorts themes and counts backgrounds", () => {
+test("parseInventory preserves the helper's theme order", () => {
+  // The Python helper owns ordering (it mirrors Omarchy's theme switcher), so
+  // the model must never re-sort the themes it receives.
   const inv = inventory([
     { slug: "zulu", backgrounds: ["/b/2", "/b/1"] },
     { slug: "alpha", backgrounds: ["/a/1"] }
   ])
-  assert.deepStrictEqual(inv.themes.map((t) => t.slug), ["alpha", "zulu"])
+  assert.deepStrictEqual(inv.themes.map((t) => t.slug), ["zulu", "alpha"])
   assert.strictEqual(inv.backgroundCount, 3)
-  assert.strictEqual(inv.themes[0].name, "Alpha")
+  assert.strictEqual(inv.themes[1].name, "Alpha")
+})
+
+test("nextTheme follows the supplied order instead of re-sorting", () => {
+  const themes = [{ slug: "zulu" }, { slug: "alpha" }, { slug: "mike" }]
+  assert.strictEqual(M.nextTheme(themes, "zulu", 1), "alpha")
+  assert.strictEqual(M.nextTheme(themes, "alpha", 1), "mike")
+  assert.strictEqual(M.nextTheme(themes, "mike", 1), "zulu")
+  assert.strictEqual(M.nextTheme(themes, "zulu", -1), "mike")
 })
 
 // ---- theme decisions -------------------------------------------------------

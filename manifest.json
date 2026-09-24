@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.playgitboy.theme-wallpaper-cycler",
   "name": "Omacycle",
-  "version": "0.1.6",
+  "version": "0.1.8",
   "author": "playGitboy",
   "license": "MIT",
   "homepage": "https://github.com/playGitboy/omarchy-theme-wallpaper-cycler",
@@ -33,7 +33,9 @@
     "defaults": {
       "themeMode": "sequential",
       "wallpaperScope": "current",
-      "wallpaperRandom": false
+      "wallpaperRandom": false,
+      "autoWallpaper": false,
+      "autoWallpaperMinutes": 30
     },
     "schema": [
       {
@@ -64,6 +66,23 @@
         "label": "Random wallpaper",
         "defaultValue": false,
         "description": "Pick a random wallpaper from the chosen source instead of the next one in order."
+      },
+      {
+        "key": "autoWallpaper",
+        "type": "boolean",
+        "label": "Automatic wallpaper switching",
+        "defaultValue": false,
+        "description": "When enabled, rotate wallpapers periodically using the selected wallpaper source and random setting."
+      },
+      {
+        "key": "autoWallpaperMinutes",
+        "type": "integer",
+        "label": "Automatic wallpaper interval (minutes)",
+        "min": 1,
+        "max": 10080,
+        "step": 1,
+        "defaultValue": 30,
+        "description": "Minutes between automatic wallpaper changes. The timer is inactive unless automatic switching is enabled."
       }
     ]
   }
