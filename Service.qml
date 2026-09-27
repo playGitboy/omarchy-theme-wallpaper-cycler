@@ -374,8 +374,15 @@ Item {
     running: false
     stdout: StdioCollector { id: bindsOut; waitForEnd: true }
     onExited: function(code) {
+      var rawBinds = String(bindsOut.text || "")
       var data = null
-      try { data = JSON.parse(String(bindsOut.text || "").slice(0, 65536)) } catch (error) { data = null }
+      if (rawBinds.length <= 64 * 1024) {
+        try { data = JSON.parse(rawBinds) } catch (error) { data = null }
+      } else {
+        // The helper caps its own JSON output, so this only guards against an
+        // unexpected or replaced helper. Do not parse an oversized response.
+        root.notify(root.tr("Shortcut status was too large; keeping the previous state"))
+      }
       var mode = bindsProcess.mode
       if (mode === "status" && data && typeof data === "object") root.bindsStatus = data
       if (mode === "install") {

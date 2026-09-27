@@ -18,6 +18,7 @@ fi
 
 python3 tests/test_inventory.py
 python3 tests/test_binds.py
+python3 tests/test_helper_limits.py
 python3 tests/test_qml_safety.py
 python3 -m py_compile bin/theme-cycler
 python3 scripts/validate_manifest.py .

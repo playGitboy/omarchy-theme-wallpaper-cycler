@@ -71,6 +71,7 @@ var SIMPLIFIED_CHINESE = {
   "Some shortcuts are still in use": "部分快捷键仍被占用",
   "Could not enable shortcuts": "无法启用快捷键",
   "Shortcuts removed": "快捷键已移除",
+  "Shortcut status was too large; keeping the previous state": "快捷键状态过大，已保留先前状态",
   "SHORTCUTS": "快捷键",
   "bindings.lua has an unbalanced marker block. Repair it by hand, then reopen this panel.": "bindings.lua 中 Omacycle 标记不完整。请手动修复后重新打开面板。",
   "Written to bindings.lua. If Hyprland has not picked them up, run `hyprctl reload`.": "快捷键已写入 bindings.lua。如 Hyprland 尚未加载，请运行 `hyprctl reload`。",

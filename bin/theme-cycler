@@ -85,6 +85,10 @@ MAX_THEME_NAME_BYTES = 4096
 MAX_INVENTORY_THEMES = 1024
 MAX_INVENTORY_WALLPAPERS = 20000
 MAX_INVENTORY_BYTES = 4 * 1024 * 1024
+# Bounds for Binds command output consumed by the long-lived Quickshell service.
+MAX_LIVE_BINDS_BYTES = 512 * 1024
+MAX_BINDS_OUTPUT_BYTES = 64 * 1024
+MAX_OWNER_CHARS = 200
 BACKUP_KEEP = 5
 
 
@@ -566,19 +570,53 @@ def hyprctl_available() -> bool:
 
 
 def live_binds() -> list[dict] | None:
+    """Read Hyprland's live binds with a hard producer-side byte cap.
+
+    `hyprctl -j binds` is bounded before it can reach this process or the
+    shell: a huge or malicious bindings response is treated as unavailable
+    instead of being buffered without limit.
+    """
     if not hyprctl_available():
         return None
     try:
-        process = subprocess.run(["hyprctl", "-j", "binds"], capture_output=True, text=True, timeout=3.0)
-    except (OSError, subprocess.TimeoutExpired):
+        process = subprocess.Popen(
+            ["hyprctl", "-j", "binds"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
         return None
+    try:
+        output = process.stdout.read(MAX_LIVE_BINDS_BYTES + 1) if process.stdout else b""
+        if len(output) > MAX_LIVE_BINDS_BYTES:
+            process.kill()
+            process.wait()
+            return None
+        process.wait(timeout=3.0)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            process.kill()
+            process.wait()
+        except OSError:
+            pass
+        return None
+    finally:
+        if process.stdout:
+            process.stdout.close()
     if process.returncode != 0:
         return None
     try:
-        data = json.loads(process.stdout)
+        data = json.loads(output.decode("utf-8", errors="replace"))
     except ValueError:
         return None
     return data if isinstance(data, list) else None
+
+
+def bounded_owner(value: object) -> str:
+    text = str(value or "")
+    if len(text) <= MAX_OWNER_CHARS:
+        return text
+    return text[:MAX_OWNER_CHARS] + "…"
 
 
 def live_owner(binds: list[dict] | None, key: str) -> str | None:
@@ -595,7 +633,7 @@ def live_owner(binds: list[dict] | None, key: str) -> str | None:
                 continue
         except (TypeError, ValueError):
             continue
-        return str(entry.get("description") or "") or "(unnamed binding)"
+        return bounded_owner(entry.get("description")) or "(unnamed binding)"
     return None
 
 
@@ -608,8 +646,16 @@ def textual_owner(user_text: str, key: str) -> str | None:
         except HelperError:
             continue
         if key_signature(candidate) == (mask, name):
-            return match.group(3) or "(custom binding)"
+            return bounded_owner(match.group(3)) or "(custom binding)"
     return None
+
+
+def bounded_json(payload: dict, limit: int) -> str:
+    """Serialize a helper response, refusing to emit more than `limit` bytes."""
+    output = json.dumps(payload, ensure_ascii=False)
+    if len(output.encode("utf-8")) > limit:
+        raise HelperError(f"response exceeds {limit} bytes")
+    return output
 
 
 def reload_hyprland() -> bool:
@@ -800,10 +846,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "inventory":
-            output = json.dumps(inventory(), ensure_ascii=False)
-            if len(output.encode("utf-8")) > MAX_INVENTORY_BYTES:
-                raise HelperError(f"serialized inventory exceeds {MAX_INVENTORY_BYTES} bytes")
-            print(output)
+            print(bounded_json(inventory(), MAX_INVENTORY_BYTES))
             return 0
         if args.command == "version":
             print(f"{HELPER_NAME} 1")
@@ -813,14 +856,14 @@ def main(argv: list[str] | None = None) -> int:
             if args.action == "status":
                 payload = status(path)
                 if args.json:
-                    print(json.dumps(payload, ensure_ascii=False))
+                    print(bounded_json(payload, MAX_BINDS_OUTPUT_BYTES))
                 else:
                     print_human_status(payload)
                 return 0
             if args.action == "install":
                 payload = install(path, parse_replace(args.replace), reload=not args.no_reload)
                 if args.json:
-                    print(json.dumps(payload, ensure_ascii=False))
+                    print(bounded_json(payload, MAX_BINDS_OUTPUT_BYTES))
                 else:
                     print(f"{HELPER_NAME}: bindings installed" + (" and Hyprland reloaded" if payload["reloaded"] else ""))
                     for conflict in payload["conflicts"]:
@@ -828,7 +871,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 0 if payload["status"] == "ok" else 3
             payload = remove(path, reload=not args.no_reload)
             if args.json:
-                print(json.dumps(payload, ensure_ascii=False))
+                print(bounded_json(payload, MAX_BINDS_OUTPUT_BYTES))
             else:
                 print(f"{HELPER_NAME}: bindings removed" if payload["removed"] else f"{HELPER_NAME}: no bindings to remove")
             return 0
