@@ -19,16 +19,78 @@ var DEFAULT_AUTO_WALLPAPER_MINUTES = 30
 var MIN_AUTO_WALLPAPER_MINUTES = 1
 var MAX_AUTO_WALLPAPER_MINUTES = 10080
 
-// The four global shortcuts the service registers and the bindings manager
-// installs. `global` is the GlobalShortcut name; `action` is the binds action.
+// Global shortcuts shared by the service and bindings manager. `global` is
+// the GlobalShortcut name; `action` is the binds action.
 var SHORTCUTS = [
   { action: "theme-prev", global: "theme-prev", keys: "Super+Ctrl+Shift+Left", label: "Previous theme" },
   { action: "theme-next", global: "theme-next", keys: "Super+Ctrl+Shift+Right", label: "Next theme" },
   { action: "wallpaper-prev", global: "wallpaper-prev", keys: "Super+Ctrl+Left", label: "Previous wallpaper" },
-  { action: "wallpaper-next", global: "wallpaper-next", keys: "Super+Ctrl+Right", label: "Next wallpaper" }
+  { action: "wallpaper-next", global: "wallpaper-next", keys: "Super+Ctrl+Right", label: "Next wallpaper" },
+  { action: "open-wallpaper-dir", global: "open-wallpaper-dir", keys: "Super+Ctrl+Up", label: "Open current wallpaper directory" }
 ]
 
 var BAR_SECTIONS = ["left", "center", "right"]
+
+var SIMPLIFIED_CHINESE = {
+  "Unknown": "未知",
+  "Working…": "处理中…",
+  "Remove shortcuts": "移除快捷键",
+  "Enable & take over": "启用并接管冲突键",
+  "Enable shortcuts": "启用快捷键",
+  "Theme: ": "主题：",
+  " · Wallpaper: ": " · 壁纸：",
+  "Click for theme & wallpaper cycling": "点击切换主题和壁纸",
+  "Omacycle — enabling…": "Omacycle — 正在启动…",
+  "Starting up…": "正在启动…",
+  "BAR POSITION": "栏位置",
+  "Left": "左侧",
+  "Center": "居中",
+  "Right": "右侧",
+  "left": "左侧",
+  "center": "居中",
+  "right": "右侧",
+  "THEME SWITCHING": "主题切换",
+  "Sequential": "顺序",
+  "Random": "随机",
+  "WALLPAPER SWITCHING": "壁纸切换",
+  "Current theme": "当前主题",
+  "All themes": "所有主题",
+  "Auto switch": "自动切换",
+  "min": "分钟",
+  "No current wallpaper directory is available": "当前壁纸目录不可用",
+  "Could not read the theme inventory": "无法读取主题列表",
+  "Theme inventory was too large or invalid; keeping the previous list": "主题列表过大或无效，已保留先前列表",
+  "Bar icon moved to ": "栏图标已移动到",
+  "Opened wallpaper directory: ": "已打开壁纸目录：",
+  "No themes available": "没有可用主题",
+  "That is the only theme": "当前只有一个主题",
+  "No wallpapers available in this scope": "当前范围内没有可用壁纸",
+  "That is the only wallpaper": "当前只有一张壁纸",
+  "Wallpaper: ": "壁纸：",
+  "Shortcuts enabled": "快捷键已启用",
+  "Some shortcuts are still in use": "部分快捷键仍被占用",
+  "Could not enable shortcuts": "无法启用快捷键",
+  "Shortcuts removed": "快捷键已移除",
+  "SHORTCUTS": "快捷键",
+  "bindings.lua has an unbalanced marker block. Repair it by hand, then reopen this panel.": "bindings.lua 中 Omacycle 标记不完整。请手动修复后重新打开面板。",
+  "Written to bindings.lua. If Hyprland has not picked them up, run `hyprctl reload`.": "快捷键已写入 bindings.lua。如 Hyprland 尚未加载，请运行 `hyprctl reload`。",
+  "Super+Ctrl+←/→ wallpaper · Super+Ctrl+Shift+←/→ theme": "Super+Ctrl+←/→ 壁纸 · Super+Ctrl+Shift+←/→ 主题",
+  "Super+Ctrl+↑ open wallpaper folder": "Super+Ctrl+↑ 打开壁纸目录"
+}
+
+function isSimplifiedChinese(locale) {
+  // Localize only for the mainland China region as requested. Other regions,
+  // including Singapore and Taiwan, keep the English UI regardless of script.
+  var value = String(locale || "").split(".")[0].split("@")[0]
+    .replace(/-/g, "_").toUpperCase().split("_")
+  return value[0] === "ZH" && value.indexOf("CN") >= 0
+}
+
+function text(value, locale) {
+  var source = String(value)
+  return isSimplifiedChinese(locale) && SIMPLIFIED_CHINESE[source] !== undefined
+    ? SIMPLIFIED_CHINESE[source] : source
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -195,6 +257,14 @@ function normalizeTheme(theme) {
 
 // Parse the helper's JSON defensively. Anything malformed degrades to an empty
 // inventory rather than throwing inside a QML binding.
+function isInventoryPayload(raw) {
+  var data = raw
+  if (typeof raw === "string") {
+    try { data = JSON.parse(raw) } catch (error) { return false }
+  }
+  return isPlainObject(data) && data.schema === 1 && Array.isArray(data.themes)
+}
+
 function parseInventory(raw) {
   var data = raw
   if (typeof raw === "string") {
@@ -376,6 +446,8 @@ if (typeof module !== "undefined") {
     MAX_AUTO_WALLPAPER_MINUTES: MAX_AUTO_WALLPAPER_MINUTES,
     SHORTCUTS: SHORTCUTS,
     BAR_SECTIONS: BAR_SECTIONS,
+    isSimplifiedChinese: isSimplifiedChinese,
+    text: text,
     isPlainObject: isPlainObject,
     normalizeThemeMode: normalizeThemeMode,
     normalizeWallpaperScope: normalizeWallpaperScope,
@@ -389,6 +461,7 @@ if (typeof module !== "undefined") {
     settingsEntry: settingsEntry,
     prettyName: prettyName,
     parseInventory: parseInventory,
+    isInventoryPayload: isInventoryPayload,
     themeList: themeList,
     themeIndex: themeIndex,
     themeBySlug: themeBySlug,

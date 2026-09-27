@@ -57,12 +57,14 @@ class BindsTest(unittest.TestCase):
         payload = self.install()
         self.assertEqual(payload["status"], "ok")
         self.assertTrue(payload["installed"])
-        self.assertEqual(set(payload["keys"]), {"theme-prev", "theme-next", "wallpaper-prev", "wallpaper-next"})
+        self.assertEqual(set(payload["keys"]), {"theme-prev", "theme-next", "wallpaper-prev", "wallpaper-next", "open-wallpaper-dir"})
         text = self.config.read_text()
         self.assertIn(BEGIN, text)
         self.assertIn(END, text)
         self.assertIn("theme-prev", text)
         self.assertIn("wallpaper-next", text)
+        self.assertIn('hl.dsp.global("io.github.playgitboy.theme-wallpaper-cycler:open-wallpaper-dir")', text)
+        self.assertIn('o.bind("SUPER + CTRL + UP"', text)
         # No conflicting keys, so no unbind lines are needed.
         self.assertNotIn("hl.unbind", text)
         self.assertTrue(self.status()["installed"])
@@ -109,6 +111,7 @@ class BindsTest(unittest.TestCase):
             'o.bind("SUPER + CTRL + SHIFT + RIGHT", "b", "x")\n'
             'o.bind("SUPER + CTRL + LEFT", "c", "x")\n'
             'o.bind("SUPER + CTRL + RIGHT", "d", "x")\n'
+            'o.bind("SUPER + CTRL + UP", "e", "x")\n'
         )
         payload = self.install()
         self.assertEqual(payload["status"], "blocked")

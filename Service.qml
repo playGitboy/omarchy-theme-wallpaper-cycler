@@ -7,9 +7,9 @@ import "Model.js" as Model
 // Omacycle service.
 //
 // One process-wide instance owns everything that must exist exactly once:
-// the four GlobalShortcuts, the theme/background inventory, the cycling
+// the five GlobalShortcuts, the theme/background inventory, the cycling
 // decision, the bindings.lua manager, and the IPC surface. The bar widget
-// (BarWidget.qml) is a thin per-monitor view over this service, so a four-key
+// (BarWidget.qml) is a thin per-monitor view over this service, so a five-key
 // shortcut set is never registered once per screen.
 //
 // All inventory data comes from bin/theme-cycler and is parsed defensively by
@@ -36,6 +36,10 @@ Item {
   readonly property string helperPath: pluginDir + "/bin/theme-cycler"
   // Resolve through PATH so the plugin also works on non-Arch Omarchy hosts.
   readonly property string pythonPath: "python3"
+  readonly property string systemLocale: Quickshell.env("LC_ALL") || Quickshell.env("LC_MESSAGES") || Quickshell.env("LANG") || "en_US"
+  // Service-generated toasts may contain filesystem-derived theme/wallpaper names.
+
+  function tr(value) { return Model.text(value, root.systemLocale) }
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string configHome: Quickshell.env("XDG_CONFIG_HOME") || (home + "/.config")
@@ -165,7 +169,7 @@ Item {
   function moveBar(section) {
     if (Model.BAR_SECTIONS.indexOf(section) < 0) return
     Quickshell.execDetached(["omarchy", "bar", "move", root.pluginId, "--section", section])
-    root.notify("Bar icon moved to " + section)
+    root.notify(root.tr("Bar icon moved to ") + root.tr(section))
     placementRefresh.restart()
   }
 
@@ -185,14 +189,22 @@ Item {
     id: inventoryProcess
     running: false
     stdout: StdioCollector { id: inventoryOut; waitForEnd: true }
+    stderr: StdioCollector { id: inventoryError; waitForEnd: true }
     onExited: function(code) {
       root.inventoryBusy = false
       if (code === 0) {
-        var next = Model.parseInventory(String(inventoryOut.text || "").slice(0, 4 * 1024 * 1024))
-        root.inventory = next
-        root.inventoryAt = Date.now()
-      } else if (root.themes.length === 0) {
-        root.notify("Could not read the theme inventory")
+        var rawInventory = String(inventoryOut.text || "")
+        if (rawInventory.length <= 4 * 1024 * 1024 && Model.isInventoryPayload(rawInventory)) {
+          root.inventory = Model.parseInventory(rawInventory)
+          root.inventoryAt = Date.now()
+        } else {
+          // Never replace a usable inventory with a truncated or incompatible
+          // result; large theme collections should degrade without breaking cycling.
+          root.notify(root.tr("Theme inventory was too large or invalid; keeping the previous list"))
+        }
+      } else {
+        var detail = String(inventoryError.text || "").slice(0, 512)
+        root.notify(root.tr("Could not read the theme inventory") + (detail ? ": " + detail : ""))
       }
       if (root.pendingRefresh) {
         root.pendingRefresh = false
@@ -236,15 +248,27 @@ Item {
   function cycleTheme(direction) { root.ensureInventoryThen("theme", direction) }
   function cycleWallpaper(direction) { root.ensureInventoryThen("wallpaper", direction) }
 
+  function openCurrentWallpaperDirectory() {
+    var path = root.currentBackgroundPath
+    if (!path || path.indexOf("/") < 0) {
+      root.notify(root.tr("No current wallpaper directory is available"))
+      return
+    }
+    var separator = path.lastIndexOf("/")
+    var directory = separator === 0 ? "/" : path.slice(0, separator)
+    Quickshell.execDetached(["xdg-open", directory])
+    root.notify(root.tr("Opened wallpaper directory: ") + directory)
+  }
+
   function performCycle(kind, direction) {
     var step = Number(direction) < 0 ? -1 : 1
     if (kind === "theme") {
       var slug = Model.decideTheme(root.inventory, root.settings, step)
-      if (!slug) { root.notify("No themes available"); return }
-      if (slug === root.currentThemeSlug) { root.notify("That is the only theme"); return }
+      if (!slug) { root.notify(root.tr("No themes available")); return }
+      if (slug === root.currentThemeSlug) { root.notify(root.tr("That is the only theme")); return }
       var label = slug
       for (var t = 0; t < root.themes.length; t++) if (root.themes[t].slug === slug) label = root.themes[t].name
-      root.notify("Theme: " + label)
+      root.notify(root.tr("Theme: ") + label)
       Quickshell.execDetached(["omarchy", "theme", "set", slug])
       var optimistic = {}
       for (var key in root.inventory) optimistic[key] = root.inventory[key]
@@ -252,9 +276,9 @@ Item {
       root.inventory = optimistic
     } else {
       var path = Model.decideBackground(root.inventory, root.settings, step)
-      if (!path) { root.notify("No wallpapers available in this scope"); return }
-      if (path === root.currentBackgroundPath) { root.notify("That is the only wallpaper"); return }
-      root.notify("Wallpaper: " + Model.baseName(path))
+      if (!path) { root.notify(root.tr("No wallpapers available in this scope")); return }
+      if (path === root.currentBackgroundPath) { root.notify(root.tr("That is the only wallpaper")); return }
+      root.notify(root.tr("Wallpaper: ") + Model.baseName(path))
       Quickshell.execDetached(["omarchy", "theme", "bg", "set", path])
       var optimisticBackground = {}
       for (var bgKey in root.inventory) optimisticBackground[bgKey] = root.inventory[bgKey]
@@ -355,11 +379,11 @@ Item {
       var mode = bindsProcess.mode
       if (mode === "status" && data && typeof data === "object") root.bindsStatus = data
       if (mode === "install") {
-        if (data && data.status === "ok") root.notify("Shortcuts enabled")
-        else if (data && Array.isArray(data.conflicts) && data.conflicts.length > 0) root.notify("Some shortcuts are still in use")
-        else root.notify("Could not enable shortcuts")
+        if (data && data.status === "ok") root.notify(root.tr("Shortcuts enabled"))
+        else if (data && Array.isArray(data.conflicts) && data.conflicts.length > 0) root.notify(root.tr("Some shortcuts are still in use"))
+        else root.notify(root.tr("Could not enable shortcuts"))
       } else if (mode === "remove") {
-        root.notify("Shortcuts removed")
+        root.notify(root.tr("Shortcuts removed"))
       }
       root.bindsChanged()
       if (mode !== "status") root.refreshBindStatus()
@@ -372,6 +396,7 @@ Item {
   GlobalShortcut { appid: root.pluginId; name: "theme-next"; description: Model.SHORTCUTS[1].label; onPressed: root.cycleTheme(1) }
   GlobalShortcut { appid: root.pluginId; name: "wallpaper-prev"; description: Model.SHORTCUTS[2].label; onPressed: root.cycleWallpaper(-1) }
   GlobalShortcut { appid: root.pluginId; name: "wallpaper-next"; description: Model.SHORTCUTS[3].label; onPressed: root.cycleWallpaper(1) }
+  GlobalShortcut { appid: root.pluginId; name: "open-wallpaper-dir"; description: Model.SHORTCUTS[4].label; onPressed: root.openCurrentWallpaperDirectory() }
 
   // ---- IPC ----------------------------------------------------------------
   IpcHandler {

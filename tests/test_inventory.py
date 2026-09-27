@@ -6,12 +6,15 @@ and asserts the JSON the QML service will consume.
 """
 from __future__ import annotations
 
+import importlib.util
+from importlib.machinery import SourceFileLoader
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -99,6 +102,24 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual(data["currentTheme"], "tokyo")
         self.assertEqual(data["currentBackground"], str(self.omarchy / "themes" / "tokyo" / "backgrounds" / "wall.jpg"))
 
+    def test_inventory_rejects_theme_count_above_limit(self) -> None:
+        write_media(self.omarchy / "themes" / "one" / "backgrounds", ["a.png"])
+        write_media(self.omarchy / "themes" / "two" / "backgrounds", ["b.png"])
+        loader = SourceFileLoader("theme_cycler_test", str(HELPER))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
+        module.MAX_INVENTORY_THEMES = 1
+        with patch.dict(os.environ, self.env):
+            with self.assertRaises(module.HelperError):
+                module.inventory()
+
+    def test_oversized_current_theme_state_is_ignored(self) -> None:
+        state = self.home / ".local" / "state" / "omarchy" / "current"
+        state.mkdir(parents=True)
+        (state / "theme.name").write_bytes(b"x" * 5000)
+        self.assertEqual(self.inventory()["currentTheme"], "")
+
     def test_dangling_current_background_is_ignored(self) -> None:
         state = self.home / ".local" / "state" / "omarchy" / "current"
         state.mkdir(parents=True)
@@ -183,6 +204,16 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual(ours, expected)
         self.assertEqual(ours[0], "2-haxorz")
         self.assertLess(ours.index("catppuccin-latte"), ours.index("catppuccin"))
+
+    def test_markup_like_names_are_preserved_as_data(self) -> None:
+        slug = "<img src=x>"
+        wallpaper = "<img src=x>.png"
+        directory = self.omarchy / "themes" / slug / "backgrounds"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / wallpaper).write_bytes(b"x")
+        data = self.inventory()
+        self.assertEqual(data["themes"][0]["slug"], slug)
+        self.assertEqual(data["themes"][0]["backgrounds"][0].rsplit("/", 1)[-1], wallpaper)
 
     def test_pretty_names(self) -> None:
         write_media(self.omarchy / "themes" / "2-haxorz" / "backgrounds", ["a.png"])

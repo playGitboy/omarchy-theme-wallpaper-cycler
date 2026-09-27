@@ -37,6 +37,15 @@ Panel {
     [Qt.darker(root.foreground, 1.55), root.foreground],
     3.0)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+  readonly property string systemLocale: Quickshell.env("LC_ALL") || Quickshell.env("LC_MESSAGES") || Quickshell.env("LANG") || "en_US"
+
+  function tr(value) { return Model.text(value, root.systemLocale) }
+  function formatConflict(conflict) {
+    if (Model.isSimplifiedChinese(root.systemLocale)) {
+      return "· " + conflict.pretty + " 被“" + conflict.owner + "”占用。启用后将接管" + (conflict.alternate ? "（备用：" + conflict.alternate + "）" : "")
+    }
+    return "· " + conflict.pretty + " is taken by “" + conflict.owner + "”. Enabling takes it over" + (conflict.alternate ? " (fallback " + conflict.alternate + ")." : ".")
+  }
 
   // Read through the service when present, otherwise fall back to the injected
   // shell.json entry so the panel still renders a coherent default.
@@ -56,11 +65,11 @@ Panel {
     for (var i = 0; i < themes.length; i++) {
       if (themes[i].slug === root.service.currentThemeSlug) return themes[i].name
     }
-    return root.serviceReady && root.service.currentThemeSlug !== "" ? Model.prettyName(root.service.currentThemeSlug) : "Unknown"
+    return root.serviceReady && root.service.currentThemeSlug !== "" ? Model.prettyName(root.service.currentThemeSlug) : root.tr("Unknown")
   }
   readonly property string currentWallpaperLabel: {
     var path = root.serviceReady ? root.service.currentBackgroundPath : ""
-    return path === "" ? "Unknown" : Model.baseName(path)
+    return path === "" ? root.tr("Unknown") : Model.baseName(path)
   }
   readonly property int themeCount: root.serviceReady ? service.themeCount : 0
   readonly property int currentCount: root.serviceReady ? service.currentBackgroundCount : 0
@@ -170,10 +179,10 @@ Panel {
 
   // One button that matches the current setup state.
   function bindsButtonLabel() {
-    if (root.bindsBusy) return "Working…"
-    if (root.bindsInstalled) return "Remove shortcuts"
-    if (root.conflicts.length > 0) return "Enable & take over"
-    return "Enable shortcuts"
+    if (root.bindsBusy) return root.tr("Working…")
+    if (root.bindsInstalled) return root.tr("Remove shortcuts")
+    if (root.conflicts.length > 0) return root.tr("Enable & take over")
+    return root.tr("Enable shortcuts")
   }
 
   function primaryBindsAction() {
@@ -188,8 +197,8 @@ Panel {
     bar: root.bar
     text: "󰏘"
     tooltipText: root.serviceReady
-      ? ("Theme: " + root.currentThemeLabel + " · Wallpaper: " + root.currentWallpaperLabel + "\nClick for theme & wallpaper cycling")
-      : "Omacycle — enabling…"
+      ? (root.tr("Theme: ") + root.currentThemeLabel + root.tr(" · Wallpaper: ") + root.currentWallpaperLabel + "\n" + root.tr("Click for theme & wallpaper cycling"))
+      : root.tr("Omacycle — enabling…")
     onPressed: function(mouseButton) {
       if (mouseButton === Qt.RightButton && root.serviceReady) root.service.cycleWallpaper(1)
       else root.toggle()
@@ -275,9 +284,12 @@ Panel {
               }
 
               Text {
+                // Inventory names come from filesystem paths and must never be
+                // interpreted as rich text (AutoText accepts external URLs).
+                textFormat: Text.PlainText
                 text: root.serviceReady
                   ? (root.currentThemeLabel + " · " + root.currentWallpaperLabel)
-                  : "Starting up…"
+                  : root.tr("Starting up…")
                 color: Qt.darker(root.foreground, 1.4)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
@@ -295,7 +307,7 @@ Panel {
             spacing: Style.space(4)
 
             PanelSectionHeader {
-              text: "BAR POSITION"
+              text: root.tr("BAR POSITION")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -309,9 +321,9 @@ Panel {
               foreground: root.foreground
               accent: root.accent
               options: [
-                { value: "left", label: "Left" },
-                { value: "center", label: "Center" },
-                { value: "right", label: "Right" }
+                { value: "left", label: root.tr("Left") },
+                { value: "center", label: root.tr("Center") },
+                { value: "right", label: root.tr("Right") }
               ]
               value: root.barSection
               onChanged: function(value) { root.moveBar(value) }
@@ -326,7 +338,7 @@ Panel {
             spacing: Style.space(4)
 
             PanelSectionHeader {
-              text: "THEME SWITCHING"
+              text: root.tr("THEME SWITCHING")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -340,8 +352,8 @@ Panel {
               foreground: root.foreground
               accent: root.accent
               options: [
-                { value: "sequential", label: "Sequential" },
-                { value: "random", label: "Random" }
+                { value: "sequential", label: root.tr("Sequential") },
+                { value: "random", label: root.tr("Random") }
               ]
               value: root.themeMode
               onChanged: function(value) { root.setThemeMode(value) }
@@ -356,7 +368,7 @@ Panel {
             spacing: Style.space(4)
 
             PanelSectionHeader {
-              text: "WALLPAPER SWITCHING"
+              text: root.tr("WALLPAPER SWITCHING")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -370,8 +382,8 @@ Panel {
               foreground: root.foreground
               accent: root.accent
               options: [
-                { value: "current", label: "Current theme" },
-                { value: "all", label: "All themes" }
+                { value: "current", label: root.tr("Current theme") },
+                { value: "all", label: root.tr("All themes") }
               ]
               value: root.wallpaperScope
               onChanged: function(value) { root.setWallpaperScope(value) }
@@ -384,7 +396,7 @@ Panel {
               height: Style.space(36)
               hasCursor: root.cursor === 3
               checked: root.wallpaperRandom
-              label: "Random"
+              label: root.tr("Random")
               foreground: root.foreground
               accent: root.accent
               fontFamily: root.fontFamily
@@ -401,7 +413,7 @@ Panel {
               height: Style.space(36)
               hasCursor: root.cursor === 4
               checked: root.autoWallpaper
-              label: "Auto switch"
+              label: root.tr("Auto switch")
               foreground: root.foreground
               accent: root.accent
               fontFamily: root.fontFamily
@@ -433,7 +445,7 @@ Panel {
                 }
 
                 Text {
-                  text: "min"
+                  text: root.tr("min")
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -466,7 +478,7 @@ Panel {
             spacing: Style.space(4)
 
             PanelSectionHeader {
-              text: "SHORTCUTS"
+              text: root.tr("SHORTCUTS")
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
@@ -481,7 +493,9 @@ Panel {
                 model: root.conflicts
                 delegate: Text {
                   required property var modelData
-                  text: "· " + modelData.pretty + " is taken by “" + modelData.owner + "”. Enabling takes it over" + (modelData.alternate ? " (fallback " + modelData.alternate + ")." : ".")
+                  // Binding descriptions/owners originate outside the plugin.
+                  textFormat: Text.PlainText
+                  text: root.formatConflict(modelData)
                   color: Color.urgent
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -493,7 +507,7 @@ Panel {
 
             Text {
               visible: root.bindsMalformed
-              text: "bindings.lua has an unbalanced marker block. Repair it by hand, then reopen this panel."
+              text: root.tr("bindings.lua has an unbalanced marker block. Repair it by hand, then reopen this panel.")
               color: Color.urgent
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -521,7 +535,7 @@ Panel {
 
             Text {
               visible: root.bindsInstalled && !root.bindsLive
-              text: "Written to bindings.lua. If Hyprland has not picked them up, run `hyprctl reload`."
+              text: root.tr("Written to bindings.lua. If Hyprland has not picked them up, run `hyprctl reload`.")
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -531,6 +545,8 @@ Panel {
 
             Text {
               visible: root.serviceReady && !!root.service.lastMessage
+              // Status messages can embed inventory filenames or paths.
+              textFormat: Text.PlainText
               text: root.serviceReady ? String(root.service.lastMessage) : ""
               color: root.dim
               font.family: root.fontFamily
@@ -542,13 +558,27 @@ Panel {
 
           PanelSeparator { foreground: root.foreground }
 
-          Text {
-            text: "Super+Ctrl+←/→ wallpaper · Super+Ctrl+Shift+←/→ theme"
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
-            horizontalAlignment: Text.AlignHCenter
+          Column {
             width: parent.width
+            spacing: Style.space(2)
+
+            Text {
+              text: root.tr("Super+Ctrl+←/→ wallpaper · Super+Ctrl+Shift+←/→ theme")
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              horizontalAlignment: Text.AlignHCenter
+              width: parent.width
+            }
+
+            Text {
+              text: root.tr("Super+Ctrl+↑ open wallpaper folder")
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              horizontalAlignment: Text.AlignHCenter
+              width: parent.width
+            }
           }
         }
       }

@@ -85,6 +85,18 @@ test("settingsEntry preserves unknown keys and overwrites owned ones", () => {
   assert.strictEqual(entry.autoWallpaperMinutes, 45)
 })
 
+test("locale detection translates Simplified Chinese only", () => {
+  assert.strictEqual(M.isSimplifiedChinese("zh_CN.UTF-8"), true)
+  assert.strictEqual(M.isSimplifiedChinese("zh-CN"), true)
+  assert.strictEqual(M.isSimplifiedChinese("zh_Hans_CN"), true)
+  assert.strictEqual(M.isSimplifiedChinese("zh_SG.UTF-8"), false)
+  assert.strictEqual(M.isSimplifiedChinese("zh_TW.UTF-8"), false)
+  assert.strictEqual(M.isSimplifiedChinese("zh_Hans"), false)
+  assert.strictEqual(M.isSimplifiedChinese("en_US.UTF-8"), false)
+  assert.strictEqual(M.text("BAR POSITION", "zh_CN.UTF-8"), "栏位置")
+  assert.strictEqual(M.text("BAR POSITION", "en_US.UTF-8"), "BAR POSITION")
+})
+
 test("prettyName matches omarchy theme list", () => {
   assert.strictEqual(M.prettyName("tokyo-night"), "Tokyo Night")
   assert.strictEqual(M.prettyName("2-haxorz"), "2 Haxorz")
@@ -92,6 +104,14 @@ test("prettyName matches omarchy theme list", () => {
 })
 
 // ---- inventory parsing -----------------------------------------------------
+
+test("inventory payload validation requires the supported schema", () => {
+  assert.strictEqual(M.isInventoryPayload({ schema: 1, themes: [] }), true)
+  assert.strictEqual(M.isInventoryPayload(JSON.stringify({ schema: 1, themes: [] })), true)
+  assert.strictEqual(M.isInventoryPayload({ schema: 2, themes: [] }), false)
+  assert.strictEqual(M.isInventoryPayload({ schema: 1, themes: "invalid" }), false)
+  assert.strictEqual(M.isInventoryPayload("not json"), false)
+})
 
 test("parseInventory rejects malformed input without throwing", () => {
   assert.deepStrictEqual(M.parseInventory("not json").themes, [])

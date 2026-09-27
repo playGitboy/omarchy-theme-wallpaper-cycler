@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "io.github.playgitboy.theme-wallpaper-cycler",
   "name": "Omacycle",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "author": "playGitboy",
   "license": "MIT",
   "homepage": "https://github.com/playGitboy/omarchy-theme-wallpaper-cycler",
-  "description": "Cycle every installed Omarchy theme and wallpaper from the bar or with Super+Ctrl(+Shift)+Left/Right. Choose sequential or random order, cycle the current theme's wallpapers or every theme's, and use a panel that follows the active theme colours.",
+  "description": "Make your desktop feel new: cycle Omarchy themes and wallpapers, auto-rotate on your schedule, or open the current wallpaper folder instantly. English and locale-aware Simplified Chinese UI.",
   "kinds": [
     "service",
     "bar-widget"
@@ -18,7 +18,7 @@
   },
   "barWidget": {
     "displayName": "Omacycle",
-    "description": "One bar icon and one panel: pick the icon's bar position, choose sequential or random theme switching, choose current-theme or all-theme wallpaper rotation, enable the Super+Ctrl(+Shift)+Left/Right shortcuts, and see the current theme and wallpaper.",
+    "description": "Refresh your desktop in one click: cycle themes and wallpapers, enable timed rotation, or open the current wallpaper folder. English + locale-aware Simplified Chinese.",
     "category": "Appearance",
     "aliases": [
       "theme",

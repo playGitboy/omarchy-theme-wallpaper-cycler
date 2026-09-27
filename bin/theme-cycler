@@ -51,13 +51,14 @@ MEDIA_EXTENSIONS = (
 )
 
 # Ordered the way the panel presents them.
-ACTIONS = ("theme-prev", "theme-next", "wallpaper-prev", "wallpaper-next")
+ACTIONS = ("theme-prev", "theme-next", "wallpaper-prev", "wallpaper-next", "open-wallpaper-dir")
 
 DESCRIPTIONS = {
     "theme-prev": "Previous theme (Omacycle)",
     "theme-next": "Next theme (Omacycle)",
     "wallpaper-prev": "Previous wallpaper (Omacycle)",
     "wallpaper-next": "Next wallpaper (Omacycle)",
+    "open-wallpaper-dir": "Open current wallpaper directory (Omacycle)",
 }
 
 DEFAULT_KEYS = {
@@ -65,6 +66,7 @@ DEFAULT_KEYS = {
     "theme-next": "SUPER + CTRL + SHIFT + RIGHT",
     "wallpaper-prev": "SUPER + CTRL + LEFT",
     "wallpaper-next": "SUPER + CTRL + RIGHT",
+    "open-wallpaper-dir": "SUPER + CTRL + UP",
 }
 
 ALTERNATE_KEYS = {
@@ -72,12 +74,17 @@ ALTERNATE_KEYS = {
     "theme-next": "SUPER + ALT + SHIFT + RIGHT",
     "wallpaper-prev": "SUPER + ALT + LEFT",
     "wallpaper-next": "SUPER + ALT + RIGHT",
+    "open-wallpaper-dir": "SUPER + ALT + UP",
 }
 
 MOD_MASK = {"SHIFT": 1, "CAPS": 2, "CTRL": 4, "ALT": 8, "MOD2": 16, "MOD3": 32, "SUPER": 64, "MOD5": 128}
 MOD_ORDER = ["SUPER", "SHIFT", "CTRL", "ALT", "CAPS", "MOD2", "MOD3", "MOD5"]
 KEY_RE = re.compile(r"^[A-Za-z0-9_]{1,32}$")
 MAX_CONFIG_BYTES = 1024 * 1024
+MAX_THEME_NAME_BYTES = 4096
+MAX_INVENTORY_THEMES = 1024
+MAX_INVENTORY_WALLPAPERS = 20000
+MAX_INVENTORY_BYTES = 4 * 1024 * 1024
 BACKUP_KEEP = 5
 
 
@@ -192,6 +199,7 @@ def theme_backgrounds(slug: str, current_slug: str) -> list[str]:
     `omarchy theme bg next`.
     """
     entries = []
+    estimated_bytes = 0
     for directory in theme_background_dirs(slug, current_slug):
         if not is_dir(directory):
             continue
@@ -208,7 +216,13 @@ def theme_backgrounds(slug: str, current_slug: str) -> list[str]:
                     continue
             except OSError:
                 continue
-            entries.append((display, os.path.realpath(display)))
+            real = os.path.realpath(display)
+            estimated_bytes += len(display.encode("utf-8", errors="replace")) + len(real.encode("utf-8", errors="replace")) + 32
+            if estimated_bytes > MAX_INVENTORY_BYTES:
+                raise HelperError(f"wallpaper inventory for {slug} exceeds {MAX_INVENTORY_BYTES} bytes")
+            entries.append((display, real))
+            if len(entries) > MAX_INVENTORY_WALLPAPERS:
+                raise HelperError(f"wallpaper inventory for {slug} exceeds {MAX_INVENTORY_WALLPAPERS} entries")
     entries.sort(key=lambda entry: collation_key(entry[0]))
     ordered = []
     seen = set()
@@ -315,6 +329,8 @@ def theme_slugs() -> list[str]:
             path = os.path.join(base, name)
             if is_dir(path):
                 slugs.add(name)
+                if len(slugs) > MAX_INVENTORY_THEMES:
+                    raise HelperError(f"theme inventory exceeds {MAX_INVENTORY_THEMES} entries")
 
     def sort_key(slug: str) -> str:
         extension = theme_preview_extension(slug)
@@ -325,8 +341,11 @@ def theme_slugs() -> list[str]:
 
 def current_theme() -> str:
     try:
-        with open(current_theme_name_path(), "r", encoding="utf-8", errors="replace") as handle:
-            return handle.read().strip()
+        with open(current_theme_name_path(), "rb") as handle:
+            raw = handle.read(MAX_THEME_NAME_BYTES + 1)
+        if len(raw) > MAX_THEME_NAME_BYTES:
+            return ""
+        return raw.decode("utf-8", errors="replace").strip()
     except OSError:
         return ""
 
@@ -344,13 +363,23 @@ def inventory() -> dict:
     use_session_collation()
     current_slug = current_theme()
     themes = []
+    wallpaper_count = 0
+    estimated_bytes = 256
     for slug in theme_slugs():
         user_dir = os.path.join(user_themes_dir(), slug)
+        backgrounds = theme_backgrounds(slug, current_slug)
+        wallpaper_count += len(backgrounds)
+        if wallpaper_count > MAX_INVENTORY_WALLPAPERS:
+            raise HelperError(f"wallpaper inventory exceeds {MAX_INVENTORY_WALLPAPERS} entries")
+        estimated_bytes += len(json.dumps(slug, ensure_ascii=False).encode("utf-8")) * 2 + 96
+        estimated_bytes += sum(len(json.dumps(path, ensure_ascii=False).encode("utf-8")) + 2 for path in backgrounds)
+        if estimated_bytes > MAX_INVENTORY_BYTES:
+            raise HelperError(f"serialized inventory exceeds {MAX_INVENTORY_BYTES} bytes")
         themes.append({
             "slug": slug,
             "name": pretty_name(slug),
             "source": "user" if is_dir(user_dir) else "system",
-            "backgrounds": theme_backgrounds(slug, current_slug),
+            "backgrounds": backgrounds,
         })
     return {
         "schema": 1,
@@ -771,7 +800,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "inventory":
-            print(json.dumps(inventory(), ensure_ascii=False))
+            output = json.dumps(inventory(), ensure_ascii=False)
+            if len(output.encode("utf-8")) > MAX_INVENTORY_BYTES:
+                raise HelperError(f"serialized inventory exceeds {MAX_INVENTORY_BYTES} bytes")
+            print(output)
             return 0
         if args.command == "version":
             print(f"{HELPER_NAME} 1")

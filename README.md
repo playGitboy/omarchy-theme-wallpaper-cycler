@@ -20,11 +20,13 @@ theme's colours.
 - **Wallpaper cycling** — `Super+Ctrl+Left` / `Super+Ctrl+Right` cycles the
   current theme's wallpapers, or every wallpaper across every installed theme,
   in order or at random.
+- **Open wallpaper folder** — `Super+Ctrl+Up` opens the directory containing
+  the currently active wallpaper in the default file manager.
 - **A bar panel** — choose the icon's bar position (left/center/right), the
   theme and wallpaper modes, and enable or remove the shortcuts. The panel uses
   Omarchy's theme tokens, so it recolours itself whenever the theme changes.
-- **A managed keybinding block** — the shortcuts are written to
-  `~/.config/hypr/bindings.lua` as one fenced block that only this plugin owns.
+- **A managed keybinding block** — the shortcuts, including the wallpaper-folder
+  shortcut, are written to `~/.config/hypr/bindings.lua` as one fenced block that only this plugin owns.
   Nothing outside the block is ever touched, and removal restores the file.
 
 ## Requirements
@@ -51,7 +53,9 @@ from the panel's **Bar position** section.
 
 ## Usage
 
-Click the palette icon in the bar to open the panel.
+Click the palette icon in the bar to open the panel. Common panel labels are
+shown in Simplified Chinese for mainland-China locales such as `zh_CN` and
+`zh-Hans-CN`; all other regions use English.
 
 | Control | What it changes |
 | --- | --- |
@@ -74,6 +78,7 @@ shortcuts for theme mode, wallpaper source, random, auto switch, and enable/remo
 | `Super+Ctrl+Shift+Right` | Next theme |
 | `Super+Ctrl+Left` | Previous wallpaper |
 | `Super+Ctrl+Right` | Next wallpaper |
+| `Super+Ctrl+Up` | Open the current wallpaper directory |
 
 ### IPC
 
@@ -162,7 +167,7 @@ over; re-add your own binding if you want it back.
   in the same order the picker shows. The model never re-sorts the helper's
   list.
 - One service instance owns the shortcuts and the inventory; the bar widget is
-  a per-monitor view, so the four shortcuts are registered once regardless of
+  a per-monitor view, so the shortcuts are registered once regardless of
   how many screens or bar copies exist.
 - Themes and wallpapers are discovered from both the stock theme directory and
   the user's own `~/.config/omarchy/themes` and
