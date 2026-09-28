@@ -34,6 +34,7 @@ import json
 import locale
 import os
 import re
+import select
 import shutil
 import stat
 import subprocess
@@ -89,6 +90,9 @@ MAX_INVENTORY_BYTES = 4 * 1024 * 1024
 MAX_LIVE_BINDS_BYTES = 512 * 1024
 MAX_BINDS_OUTPUT_BYTES = 64 * 1024
 MAX_OWNER_CHARS = 200
+# Wall-clock deadline for the whole `hyprctl -j binds` read. A silent or
+# stalled producer must never block the helper (and therefore the shell).
+LIVE_BINDS_TIMEOUT = 3.0
 BACKUP_KEEP = 5
 
 
@@ -569,12 +573,47 @@ def hyprctl_available() -> bool:
     return shutil.which("hyprctl") is not None and bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"))
 
 
+def read_bounded(stream, limit: int, deadline: float) -> bytes | None:
+    """Read a pipe up to `limit` bytes before a monotonic `deadline`.
+
+    A blocking `read()` would ignore the process deadline, so the descriptor
+    is polled with `select` instead. Returns the bytes on EOF, or None on
+    timeout, overflow, or read error.
+    """
+    try:
+        descriptor = stream.fileno()
+    except (AttributeError, OSError, ValueError):
+        return None
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        try:
+            ready, _, _ = select.select([descriptor], [], [], remaining)
+        except (OSError, ValueError):
+            return None
+        if not ready:
+            return None
+        try:
+            chunk = os.read(descriptor, min(65536, limit + 1 - total))
+        except OSError:
+            return None
+        if not chunk:
+            return b"".join(chunks)
+        chunks.append(chunk)
+        total += len(chunk)
+        if total > limit:
+            return None
+
+
 def live_binds() -> list[dict] | None:
-    """Read Hyprland's live binds with a hard producer-side byte cap.
+    """Read Hyprland's live binds with a byte cap and a wall-clock deadline.
 
     `hyprctl -j binds` is bounded before it can reach this process or the
-    shell: a huge or malicious bindings response is treated as unavailable
-    instead of being buffered without limit.
+    shell: a huge, silent, or stalled response is treated as unavailable
+    instead of being buffered without limit or blocking the helper forever.
     """
     if not hyprctl_available():
         return None
@@ -586,21 +625,27 @@ def live_binds() -> list[dict] | None:
         )
     except OSError:
         return None
+    output = None
     try:
-        output = process.stdout.read(MAX_LIVE_BINDS_BYTES + 1) if process.stdout else b""
-        if len(output) > MAX_LIVE_BINDS_BYTES:
-            process.kill()
-            process.wait()
+        if process.stdout is None:
             return None
-        process.wait(timeout=3.0)
-    except (OSError, subprocess.TimeoutExpired):
+        deadline = time.monotonic() + LIVE_BINDS_TIMEOUT
+        output = read_bounded(process.stdout, MAX_LIVE_BINDS_BYTES, deadline)
+        if output is None:
+            return None
         try:
-            process.kill()
-            process.wait()
-        except OSError:
-            pass
+            process.wait(timeout=1.0)
+        except subprocess.TimeoutExpired:
+            return None
+    except OSError:
         return None
     finally:
+        if process.poll() is None:
+            try:
+                process.kill()
+                process.wait(timeout=1.0)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
         if process.stdout:
             process.stdout.close()
     if process.returncode != 0:

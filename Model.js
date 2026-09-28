@@ -71,6 +71,7 @@ var SIMPLIFIED_CHINESE = {
   "Some shortcuts are still in use": "部分快捷键仍被占用",
   "Could not enable shortcuts": "无法启用快捷键",
   "Shortcuts removed": "快捷键已移除",
+  "The shortcuts helper timed out; keeping the previous state": "快捷键助手超时，已保留先前状态",
   "Shortcut status was too large; keeping the previous state": "快捷键状态过大，已保留先前状态",
   "SHORTCUTS": "快捷键",
   "bindings.lua has an unbalanced marker block. Repair it by hand, then reopen this panel.": "bindings.lua 中 Omacycle 标记不完整。请手动修复后重新打开面板。",

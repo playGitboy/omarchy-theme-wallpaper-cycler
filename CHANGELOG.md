@@ -7,6 +7,7 @@ Security, compatibility, locale, and marketplace presentation improvements.
 - Fixed a marketplace review blocker: filesystem-derived theme/wallpaper names, keybinding owners, and status strings now render as plain text, so markup-like names cannot trigger Qt AutoText or external resource loading.
 - Added a regression test to ensure those data-backed QML text fields remain `Text.PlainText`.
 - Bounded current-theme state-file reads, preserve the last good inventory on oversized/invalid refresh results, cap `hyprctl -j binds` input and Binds helper output before either can be buffered by the shell, and made the offline demo invoke its helper without shell command interpolation.
+- Gave the `hyprctl -j binds` read a wall-clock deadline so a silent or stalled producer cannot block the helper, and added a shell-side timeout so a wedged helper cannot leave the shortcuts queue stuck.
 - Added `Super+Ctrl+Up` to open the current wallpaper directory and show it on its own centered footer line.
 - Show common panel labels and status messages in Simplified Chinese for mainland-China locales (for example `zh_CN` and `zh-Hans-CN`); all other regions remain English.
 - Refreshed the marketplace descriptions with concise benefit-first feature highlights and explicit English/Simplified Chinese support; updated the preview from the user-designated image.

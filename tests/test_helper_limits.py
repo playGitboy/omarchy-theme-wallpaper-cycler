@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Producer-side output limits for the Binds helper path."""
+"""Producer-side output limits and deadlines for the Binds helper path."""
 from __future__ import annotations
 
 import importlib.util
 import io
 import json
+import subprocess
+import sys
+import time
 import unittest
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -26,6 +29,20 @@ class HelperLimitsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.module = load_helper()
 
+    def spawn(self, code: str) -> subprocess.Popen:
+        return subprocess.Popen(
+            [sys.executable, "-c", code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def reap(self, process: subprocess.Popen) -> None:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        if process.stdout:
+            process.stdout.close()
+
     def test_bounded_json_refuses_oversized_response(self) -> None:
         with self.assertRaises(self.module.HelperError):
             self.module.bounded_json({"text": "a" * 100}, 32)
@@ -40,26 +57,52 @@ class HelperLimitsTest(unittest.TestCase):
         self.assertTrue(clipped.endswith("…"))
         self.assertEqual(self.module.bounded_owner("short"), "short")
 
+    def test_read_bounded_returns_data_until_eof(self) -> None:
+        process = self.spawn("import sys; sys.stdout.write('ok')")
+        try:
+            result = self.module.read_bounded(process.stdout, 1024, time.monotonic() + 5)
+            process.wait(timeout=5)
+            self.assertEqual(result, b"ok")
+        finally:
+            self.reap(process)
+
+    def test_read_bounded_rejects_oversized_output(self) -> None:
+        process = self.spawn("import sys; sys.stdout.write('x' * 4096)")
+        try:
+            self.assertIsNone(self.module.read_bounded(process.stdout, 1024, time.monotonic() + 5))
+        finally:
+            self.reap(process)
+
+    def test_read_bounded_enforces_deadline_on_silent_pipe(self) -> None:
+        process = self.spawn("import time; time.sleep(30)")
+        try:
+            start = time.monotonic()
+            result = self.module.read_bounded(process.stdout, 1024, time.monotonic() + 0.25)
+            elapsed = time.monotonic() - start
+            self.assertIsNone(result)
+            self.assertLess(elapsed, 3.0)
+        finally:
+            self.reap(process)
+
+    def test_read_bounded_rejects_stream_without_descriptor(self) -> None:
+        self.assertIsNone(self.module.read_bounded(io.BytesIO(b"data"), 16, time.monotonic() + 1))
+
     def test_live_binds_rejects_oversized_hyprctl_output(self) -> None:
-        class FakeProcess:
-            returncode = 0
+        oversized = self.module.MAX_LIVE_BINDS_BYTES + 1
+        process = self.spawn(f"import sys; sys.stdout.write('x' * {oversized})")
+        with patch.object(self.module, "hyprctl_available", return_value=True), \
+                patch.object(self.module.subprocess, "Popen", return_value=process):
+            self.assertIsNone(self.module.live_binds())
 
-            def __init__(self):
-                self.stdout = io.BytesIO(b"x" * (self_module.MAX_LIVE_BINDS_BYTES + 1))
-                self.killed = False
-
-            def kill(self):
-                self.killed = True
-
-            def wait(self, *args, **kwargs):
-                return 0
-
-        self_module = self.module
-        process = FakeProcess()
-        with patch.object(self_module, "hyprctl_available", return_value=True), \
-                patch.object(self_module.subprocess, "Popen", return_value=process):
-            self.assertIsNone(self_module.live_binds())
-        self.assertTrue(process.killed)
+    def test_live_binds_times_out_on_silent_hyprctl(self) -> None:
+        process = self.spawn("import time; time.sleep(30)")
+        with patch.object(self.module, "hyprctl_available", return_value=True), \
+                patch.object(self.module, "LIVE_BINDS_TIMEOUT", 0.3), \
+                patch.object(self.module.subprocess, "Popen", return_value=process):
+            start = time.monotonic()
+            self.assertIsNone(self.module.live_binds())
+            elapsed = time.monotonic() - start
+        self.assertLess(elapsed, 5.0)
 
 
 if __name__ == "__main__":

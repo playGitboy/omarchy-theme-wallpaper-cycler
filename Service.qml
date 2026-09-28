@@ -345,6 +345,7 @@ Item {
     bindsProcess.mode = job.mode
     bindsProcess.command = job.command
     bindsProcess.running = true
+    bindsTimeout.restart()
   }
 
   function refreshBindStatus() {
@@ -374,6 +375,7 @@ Item {
     running: false
     stdout: StdioCollector { id: bindsOut; waitForEnd: true }
     onExited: function(code) {
+      bindsTimeout.stop()
       var rawBinds = String(bindsOut.text || "")
       var data = null
       if (rawBinds.length <= 64 * 1024) {
@@ -395,6 +397,22 @@ Item {
       root.bindsChanged()
       if (mode !== "status") root.refreshBindStatus()
       Qt.callLater(root.pumpBinds)
+    }
+  }
+
+  // Outer deadline for the whole helper round-trip. The helper bounds its own
+  // `hyprctl` read, but a replaced or wedged helper must not leave the queue
+  // stuck forever. The interval covers a live-binds read plus a reload.
+  Timer {
+    id: bindsTimeout
+    interval: 20000
+    repeat: false
+    onTriggered: {
+      if (!bindsProcess.running) return
+      bindsProcess.running = false
+      root.bindsQueue = []
+      root.notify(root.tr("The shortcuts helper timed out; keeping the previous state"))
+      root.bindsChanged()
     }
   }
 
