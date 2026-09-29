@@ -12,6 +12,10 @@ keyboard. Pick sequential or random theme switching, rotate only the current
 theme's wallpapers or every theme's, and use a panel that follows the active
 theme's colours.
 
+[简体中文文档](README_zh.md)
+
+![Omacycle panel in English and Simplified Chinese](preview.png)
+
 ## What it does
 
 - **Theme cycling** — `Super+Ctrl+Shift+Left` / `Super+Ctrl+Shift+Right` walks
@@ -23,11 +27,14 @@ theme's colours.
 - **Open wallpaper folder** — `Super+Ctrl+Up` opens the directory containing
   the currently active wallpaper in the default file manager.
 - **A bar panel** — choose the icon's bar position (left/center/right), the
-  theme and wallpaper modes, and enable or remove the shortcuts. The panel uses
-  Omarchy's theme tokens, so it recolours itself whenever the theme changes.
+  theme and wallpaper modes, turn on timed wallpaper rotation, and enable or
+  remove the shortcuts. The panel uses Omarchy's theme tokens, so it recolours
+  itself whenever the theme changes, and it shows in Simplified Chinese on
+  mainland-China locales and in English everywhere else.
 - **A managed keybinding block** — the shortcuts, including the wallpaper-folder
-  shortcut, are written to `~/.config/hypr/bindings.lua` as one fenced block that only this plugin owns.
-  Nothing outside the block is ever touched, and removal restores the file.
+  shortcut, are written to `~/.config/hypr/bindings.lua` as one fenced block
+  that only this plugin owns. Nothing outside the block is ever touched, and
+  removal restores the file.
 
 ## Requirements
 

@@ -12,6 +12,7 @@ Security, compatibility, locale, and marketplace presentation improvements.
 - Added `Super+Ctrl+Up` to open the current wallpaper directory and show it on its own centered footer line.
 - Show common panel labels and status messages in Simplified Chinese for mainland-China locales (for example `zh_CN` and `zh-Hans-CN`); all other regions remain English.
 - Refreshed the marketplace descriptions with concise benefit-first feature highlights and explicit English/Simplified Chinese support; updated the preview from the user-designated image.
+- Added the panel preview to the README, linked a new Simplified Chinese translation (`README_zh.md`), and expanded the feature list to cover timed rotation and locale-aware panel text.
 
 ## 0.1.9 — 2026-09-24
 
