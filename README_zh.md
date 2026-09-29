@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-从栏上的一个图标或使用键盘，循环切换所有已安装的 Omarchy 主题和壁纸。可以选择顺序或随机切换主题，只轮换当前主题的壁纸或全部主题的壁纸，面板也会跟随当前主题配色。
+一键循环切换所有已安装的 Omarchy 主题和壁纸，可以选择顺序或随机切换，只轮换当前主题壁纸或全部主题的壁纸，面板跟随当前主题配色。
 
 ![Omacycle 英文与简体中文面板](preview.png)
 
@@ -13,7 +13,7 @@
 - **壁纸循环** — `Super+Ctrl+Left` / `Super+Ctrl+Right` 循环当前主题的壁纸，
   或全部主题的壁纸，可顺序或随机。
 - **打开壁纸目录** — `Super+Ctrl+Up` 在默认文件管理器中打开当前壁纸所在目录。
-- **栏面板** — 选择图标位置（左/中/右）、主题与壁纸模式、定时轮换壁纸，以及
+- **状态栏面板** — 选择图标位置（左/中/右）、主题与壁纸模式、定时轮换壁纸，以及
   启用或移除快捷键。面板使用 Omarchy 主题 token，主题变化时自动重配色。
 - **受管理的按键块** — 所有快捷键（包括打开壁纸目录）以一个专属 fenced block
   写入 `~/.config/hypr/bindings.lua`，插件不触碰块以外的内容，移除后原样恢复。
@@ -31,7 +31,7 @@
 omarchy plugin add https://github.com/playGitboy/omarchy-theme-wallpaper-cycler.git --enable
 ```
 
-启用时可选择图标所在位置：
+启用时可设置图标所在位置：
 
 ```bash
 omarchy plugin enable io.github.playgitboy.theme-wallpaper-cycler --section right
@@ -42,7 +42,7 @@ omarchy plugin enable io.github.playgitboy.theme-wallpaper-cycler --section righ
 
 ## 使用
 
-点击栏中的调色板图标打开面板。中国大陆地区 locale（如 `zh_CN`、`zh-Hans-CN`）
+点击状态栏中的调色板图标打开面板。中国大陆地区 locale（如 `zh_CN`、`zh-Hans-CN`）
 下常用面板文字显示为简体中文，其他地区显示英文。
 
 | 控件 | 作用 |
