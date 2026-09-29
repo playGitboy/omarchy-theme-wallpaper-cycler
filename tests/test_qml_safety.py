@@ -7,6 +7,13 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 class QmlTextSafetyTest(unittest.TestCase):
+    def test_inventory_and_binds_have_deadlines(self) -> None:
+        service = (ROOT / "Service.qml").read_text(encoding="utf-8")
+        self.assertIn("id: inventoryTimeout", service)
+        self.assertIn("inventoryProcess.running = false", service)
+        self.assertIn("id: bindsTimeout", service)
+        self.assertIn("bindsProcess.running = false", service)
+
     def test_filesystem_names_and_status_are_plain_text(self) -> None:
         source = (ROOT / "BarWidget.qml").read_text(encoding="utf-8")
         self.assertIn(

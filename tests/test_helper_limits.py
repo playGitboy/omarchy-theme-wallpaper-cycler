@@ -5,8 +5,10 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 from importlib.machinery import SourceFileLoader
@@ -86,6 +88,32 @@ class HelperLimitsTest(unittest.TestCase):
 
     def test_read_bounded_rejects_stream_without_descriptor(self) -> None:
         self.assertIsNone(self.module.read_bounded(io.BytesIO(b"data"), 16, time.monotonic() + 1))
+
+    def test_open_regular_readonly_rejects_fifo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = os.path.join(tmp, "state")
+            os.mkfifo(fifo)
+            self.assertIsNone(self.module.open_regular_readonly(fifo))
+
+    def test_read_regular_bounded_rejects_fifo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = os.path.join(tmp, "state")
+            os.mkfifo(fifo)
+            self.assertIsNone(self.module.read_regular_bounded(fifo, 4096))
+
+    def test_current_theme_ignores_fifo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            state = os.path.join(tmp, ".local", "state", "omarchy", "current")
+            os.makedirs(state)
+            os.mkfifo(os.path.join(state, "theme.name"))
+            with patch.dict(os.environ, {"HOME": tmp, "XDG_STATE_HOME": os.path.join(tmp, ".local", "state")}):
+                self.assertEqual(self.module.current_theme(), "")
+
+    def test_copy_regular_file_rejects_fifo(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            fifo = os.path.join(tmp, "bindings.lua")
+            os.mkfifo(fifo)
+            self.assertIsNone(self.module.copy_regular_file(fifo, os.path.join(tmp, "backup")))
 
     def test_live_binds_rejects_oversized_hyprctl_output(self) -> None:
         oversized = self.module.MAX_LIVE_BINDS_BYTES + 1

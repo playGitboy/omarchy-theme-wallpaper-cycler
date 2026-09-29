@@ -348,14 +348,12 @@ def theme_slugs() -> list[str]:
 
 
 def current_theme() -> str:
-    try:
-        with open(current_theme_name_path(), "rb") as handle:
-            raw = handle.read(MAX_THEME_NAME_BYTES + 1)
-        if len(raw) > MAX_THEME_NAME_BYTES:
-            return ""
-        return raw.decode("utf-8", errors="replace").strip()
-    except OSError:
+    # The state pathname is mutable: open it without following symlinks and
+    # without blocking, then require a regular file so a FIFO cannot hang us.
+    raw = read_regular_bounded(current_theme_name_path(), MAX_THEME_NAME_BYTES)
+    if raw is None or len(raw) > MAX_THEME_NAME_BYTES:
         return ""
+    return raw.decode("utf-8", errors="replace").strip()
 
 
 def current_background() -> str:
@@ -439,6 +437,91 @@ def pretty_key(key: str) -> str:
 
 # --- config file handling ---------------------------------------------------
 
+def open_regular_readonly(path: str) -> int | None:
+    """Open a regular file read-only without following symlinks or blocking.
+
+    `O_NONBLOCK` keeps a FIFO or other non-regular target from blocking the
+    open; `fstat` then rejects anything that is not a regular file. Returns the
+    descriptor, or None when the path is missing, unsafe, or not regular.
+    """
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            os.close(descriptor)
+            return None
+    except OSError:
+        os.close(descriptor)
+        return None
+    return descriptor
+
+
+def read_regular_bounded(path: str, limit: int) -> bytes | None:
+    """Read at most `limit` bytes from a regular file, or None if unavailable."""
+    descriptor = open_regular_readonly(path)
+    if descriptor is None:
+        return None
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        while total <= limit:
+            chunk = os.read(descriptor, min(65536, limit + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+    except OSError:
+        return None
+    finally:
+        os.close(descriptor)
+    return b"".join(chunks)
+
+
+def copy_regular_file(source: str, destination: str) -> int | None:
+    """Copy a regular file without following symlinks or blocking on a FIFO.
+
+    Returns the source file mode on success, or None when the source is not a
+    safe regular file or the copy could not be completed.
+    """
+    source_fd = open_regular_readonly(source)
+    if source_fd is None:
+        return None
+    destination_fd = None
+    try:
+        metadata = os.fstat(source_fd)
+        if metadata.st_size > MAX_CONFIG_BYTES:
+            return None
+        try:
+            destination_fd = os.open(
+                destination,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+            )
+        except OSError:
+            return None
+        while True:
+            chunk = os.read(source_fd, 65536)
+            if not chunk:
+                break
+            os.write(destination_fd, chunk)
+        os.fsync(destination_fd)
+        os.chmod(destination, stat.S_IMODE(metadata.st_mode))
+        return stat.S_IMODE(metadata.st_mode)
+    except OSError:
+        if destination_fd is not None:
+            try:
+                os.unlink(destination)
+            except OSError:
+                pass
+        return None
+    finally:
+        if destination_fd is not None:
+            os.close(destination_fd)
+        os.close(source_fd)
+
+
 def check_config(path: str, must_exist: bool) -> None:
     try:
         metadata = os.lstat(path)
@@ -458,9 +541,12 @@ def read_config(path: str) -> str:
     check_config(path, must_exist=False)
     if not os.path.lexists(path):
         return ""
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
-    with os.fdopen(descriptor, "rb") as handle:
-        data = handle.read(MAX_CONFIG_BYTES + 1)
+    # `check_config` validates the name, but the path can be swapped for a FIFO
+    # between lstat and open; `read_regular_bounded` re-checks the open inode
+    # with a nonblocking, no-follow descriptor.
+    data = read_regular_bounded(path, MAX_CONFIG_BYTES)
+    if data is None:
+        raise HelperError(f"cannot read regular file: {path}")
     if len(data) > MAX_CONFIG_BYTES:
         raise HelperError("config unexpectedly large")
     return data.decode("utf-8")
@@ -490,8 +576,9 @@ def write_config_atomic(path: str, text: str) -> str | None:
         while os.path.lexists(backup):
             backup = f"{path}.bak.{stamp}.{suffix}"
             suffix += 1
-        shutil.copy2(path, backup)
-        mode = stat.S_IMODE(os.lstat(path).st_mode)
+        mode = copy_regular_file(path, backup)
+        if mode is None:
+            raise HelperError(f"refusing to back up unsafe or unreadable config: {path}")
     else:
         mode = 0o644
     temporary = os.path.join(directory, f".bindings.lua.{os.getpid()}.tmp")

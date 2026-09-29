@@ -179,11 +179,14 @@ Item {
       root.pendingRefresh = true
       return
     }
+    root.inventoryTimedOut = false
     root.inventoryBusy = true
     inventoryProcess.command = [root.pythonPath, root.helperPath, "inventory"]
     inventoryProcess.running = true
+    inventoryTimeout.restart()
   }
   property bool pendingRefresh: false
+  property bool inventoryTimedOut: false
 
   Process {
     id: inventoryProcess
@@ -191,6 +194,12 @@ Item {
     stdout: StdioCollector { id: inventoryOut; waitForEnd: true }
     stderr: StdioCollector { id: inventoryError; waitForEnd: true }
     onExited: function(code) {
+      inventoryTimeout.stop()
+      if (root.inventoryTimedOut) {
+        // The watchdog already stopped the helper and reset the queue.
+        root.inventoryTimedOut = false
+        return
+      }
       root.inventoryBusy = false
       if (code === 0) {
         var rawInventory = String(inventoryOut.text || "")
@@ -212,6 +221,24 @@ Item {
       } else {
         root.drainPendingCycles()
       }
+    }
+  }
+
+  // Outer deadline for the inventory helper. The helper bounds its own file
+  // reads, but a replaced or wedged helper must not leave refresh and queued
+  // cycling stuck behind a request that never exits.
+  Timer {
+    id: inventoryTimeout
+    interval: 15000
+    repeat: false
+    onTriggered: {
+      if (!inventoryProcess.running) return
+      root.inventoryTimedOut = true
+      inventoryProcess.running = false
+      root.inventoryBusy = false
+      root.pendingRefresh = false
+      root.pendingCycles = []
+      root.notify(root.tr("The theme inventory helper timed out; keeping the previous list"))
     }
   }
 

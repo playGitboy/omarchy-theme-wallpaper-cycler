@@ -60,6 +60,7 @@ var SIMPLIFIED_CHINESE = {
   "No current wallpaper directory is available": "当前壁纸目录不可用",
   "Could not read the theme inventory": "无法读取主题列表",
   "Theme inventory was too large or invalid; keeping the previous list": "主题列表过大或无效，已保留先前列表",
+  "The theme inventory helper timed out; keeping the previous list": "主题列表助手超时，已保留先前列表",
   "Bar icon moved to ": "栏图标已移动到",
   "Opened wallpaper directory: ": "已打开壁纸目录：",
   "No themes available": "没有可用主题",
