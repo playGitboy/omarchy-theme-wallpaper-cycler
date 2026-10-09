@@ -6,12 +6,44 @@ import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Qt 6.12 ships a built-in `QtQuick.Color` singleton, which wins the unqualified
-# name lookup against `qs.Commons.Color` no matter which module is imported.
-# A bare `Color.` therefore resolves to the built-in type and every theme token
-# reads back as `undefined`, which renders as opaque black instead of the
-# themed color. Always reach the singleton through its namespace.
-BARE_COLOR = re.compile(r"(?<!Commons\.)\bColor\.")
+# Qt 6.12 added a built-in `QtQuick.Color` singleton. It is visible in every
+# scope, so it wins the unqualified name lookup against `qs.Commons.Color`
+# whatever the file imports: a bare `Color` binds to the built-in type, every
+# theme token reads back as `undefined`, and the panel paints opaque black
+# with unreadable text instead of the theme's colors.
+#
+# `import qs.Commons as Commons` sidesteps that for good. A qualified import
+# binds each type explicitly, so the resolution never consults the unqualified
+# namespace and stays correct whether or not QtQuick happens to export a
+# same-named type -- the same source therefore runs on Qt 6.11 and 6.12 alike.
+# Only a bare `Color` reference is version-dependent, and there must be none.
+BARE_COLOR = re.compile(r"(?<!Commons\.)\bColor\b")
+
+# The other singletons this plugin uses are not shadowed by QtQuick, so they
+# stay unqualified: Color, Style, Border, Util and IpcRegistry come from the
+# same `qs.Commons` import line.
+COLOR_TOKENS = (
+    "Commons.Color.popups.background",
+    "Commons.Color.popups.text",
+    "Commons.Color.foreground",
+    "Commons.Color.accent",
+    "Commons.Color.urgent",
+)
+
+
+def qml_files() -> list[Path]:
+    return sorted(p for p in ROOT.rglob("*.qml") if ".git" not in p.parts)
+
+
+def code_lines(source: str) -> list[tuple[int, str]]:
+    """Yield (line number, text) for lines that are not comments."""
+    out = []
+    for number, line in enumerate(source.splitlines(), 1):
+        stripped = line.strip()
+        if stripped.startswith("//") or stripped.startswith("*"):
+            continue
+        out.append((number, line))
+    return out
 
 
 class QmlTextSafetyTest(unittest.TestCase):
@@ -40,20 +72,34 @@ class QmlTextSafetyTest(unittest.TestCase):
 
 
 class QmlColorTokenTest(unittest.TestCase):
-    def test_theme_colors_are_namespaced(self) -> None:
-        source = (ROOT / "BarWidget.qml").read_text(encoding="utf-8")
-        self.assertIn("import qs.Commons as Commons", source)
-        offenders = [
-            f"{number}: {line.strip()}"
-            for number, line in enumerate(source.splitlines(), 1)
-            if BARE_COLOR.search(line) and not line.lstrip().startswith("//")
-        ]
-        self.assertEqual(offenders, [], "use Commons.Color, not the shadowed bare Color")
+    def test_no_qml_file_binds_the_shadowed_color(self) -> None:
+        offenders = []
+        for path in qml_files():
+            source = path.read_text(encoding="utf-8")
+            for number, line in code_lines(source):
+                if BARE_COLOR.search(line):
+                    offenders.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
+        self.assertEqual(offenders, [], "read theme colors through Commons.Color")
 
-    def test_panel_background_and_text_tokens_are_read(self) -> None:
+    def test_files_using_colors_import_the_namespace(self) -> None:
+        for path in qml_files():
+            source = path.read_text(encoding="utf-8")
+            if "Commons.Color." not in source:
+                continue
+            self.assertIn(
+                "import qs.Commons as Commons",
+                source,
+                f"{path.relative_to(ROOT)} uses Commons.Color without importing the namespace",
+            )
+
+    def test_panel_reads_background_and_text_tokens(self) -> None:
         source = (ROOT / "BarWidget.qml").read_text(encoding="utf-8")
-        self.assertIn("Commons.Color.popups.background", source)
-        self.assertIn("Commons.Color.popups.text", source)
+        for token in COLOR_TOKENS:
+            self.assertIn(token, source)
+
+    def test_qml_files_are_actually_covered(self) -> None:
+        """Guard the sweep above against silently matching nothing."""
+        self.assertGreaterEqual(len(qml_files()), 2)
 
 
 if __name__ == "__main__":
