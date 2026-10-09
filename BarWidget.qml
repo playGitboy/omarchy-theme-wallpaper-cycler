@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -26,12 +27,12 @@ Panel {
   // A bar facade's foreground is optimized for the bar surface, not the
   // popup card. Prefer the popup text token and fall back to a mathematically
   // contrast-safe black/white color when a theme's tokens disagree.
-  readonly property color popupBackground: Color.popups.background
+  readonly property color popupBackground: Commons.Color.popups.background
   readonly property color foreground: Model.readableTextColor(
     root.popupBackground,
-    [Color.popups.text, Color.foreground, bar ? bar.barForeground : Color.foreground],
+    [Commons.Color.popups.text, Commons.Color.foreground, bar ? bar.barForeground : Commons.Color.foreground],
     4.5)
-  readonly property color accent: Color.accent
+  readonly property color accent: Commons.Color.accent
   readonly property color dim: Model.readableTextColor(
     root.popupBackground,
     [Qt.darker(root.foreground, 1.55), root.foreground],
@@ -496,7 +497,7 @@ Panel {
                   // Binding descriptions/owners originate outside the plugin.
                   textFormat: Text.PlainText
                   text: root.formatConflict(modelData)
-                  color: Color.urgent
+                  color: Commons.Color.urgent
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                   wrapMode: Text.WordWrap
@@ -508,7 +509,7 @@ Panel {
             Text {
               visible: root.bindsMalformed
               text: root.tr("bindings.lua has an unbalanced marker block. Repair it by hand, then reopen this panel.")
-              color: Color.urgent
+              color: Commons.Color.urgent
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               wrapMode: Text.WordWrap
